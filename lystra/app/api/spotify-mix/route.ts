@@ -46,8 +46,8 @@ export async function GET(request: Request) {
     const finalTracks = rawTracks.map((track: any) => ({
       id: String(track.id),
       title: track.title,
-      artist: track.artist.name,
-      cover: track.album.cover_xl || track.album.cover_big || track.album.cover,
+      artist: track.artist?.name || 'Неизвестный исполнитель',
+      cover: track.album?.cover_xl || track.album?.cover_big || track.album?.cover || null,
       audio: track.preview
     }));
 
