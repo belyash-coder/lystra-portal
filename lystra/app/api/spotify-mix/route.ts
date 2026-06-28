@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Жестко отключаем кэш роута
+// Отключаем кэш, чтобы всегда получать свежую рулетку
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -15,17 +15,16 @@ export async function GET(request: Request) {
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.error('❌ Не найдены ключи Spotify в переменных окружения');
-    return NextResponse.json({ error: 'Ключи Spotify не настроены', tracks: [] }, { status: 500 });
+    return NextResponse.json({ error: 'Ключи Spotify не настроены на сервере', tracks: [] }, { status: 500 });
   }
 
   try {
-    // Собираем ссылки по частям, чтобы обойти любые искажения текста
+    // Собираем ссылки по кускам для обхода текстовых фильтров
     const accountsBase = ['https://', 'accounts.', 'spotify.', 'com'].join('');
     const apiBase = ['https://', 'api.', 'spotify.', 'com', '/v1'].join('');
 
     // ==========================
-    // 1. Получаем Access Token
+    // 1. Получаем токен Spotify (Vercel сделает это из США)
     // ==========================
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const authRes = await fetch(`${accountsBase}/api/token`, {
@@ -38,105 +37,78 @@ export async function GET(request: Request) {
     });
 
     const authData = await authRes.json();
-
-    if (!authRes.ok || !authData.access_token) {
-      console.error('❌ Ошибка авторизации Spotify:', authData);
-      return NextResponse.json({ error: 'Не удалось получить токен Spotify', tracks: [] }, { status: 500 });
+    if (!authData.access_token) {
+      return NextResponse.json({ error: 'Ошибка авторизации Spotify', tracks: [] }, { status: 500 });
     }
-
     const token = authData.access_token;
 
     // ==========================
-    // 2. Поиск плейлистов
+    // 2. Ищем ТРЕКИ напрямую (забудь про плейлисты!)
     // ==========================
-    const query = encodeURIComponent(genre);
-    const searchRes = await fetch(`${apiBase}/search?q=${query}&type=playlist&limit=5`, {
+    // Пробуем искать строго по тегу жанра, если не выйдет - ищем просто как текст
+    let query = encodeURIComponent(`genre:"${genre}"`);
+    let searchRes = await fetch(`${apiBase}/search?q=${query}&type=track&limit=20`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+    let searchData = await searchRes.json();
 
-    const searchData = await searchRes.json();
-    const playlists = searchData.playlists?.items || [];
-
-    if (playlists.length === 0) {
-      return NextResponse.json({ message: 'Плейлисты не найдены', tracks: [] });
-    }
-
-// ==========================
-    // 3. Умный поиск треков (База Spotify)
-    // ==========================
-    let rawSpotifyTracks: any[] = [];
-    let finalPlaylistName = '';
-
-    for (const playlist of playlists) {
-      if (!playlist) continue;
-
-      const tracksRes = await fetch(`${apiBase}/playlists/${playlist.id}/tracks?limit=50`, {
+    // Фоллбэк: если строгий поиск по жанру не дал результатов
+    if (!searchData.tracks?.items?.length) {
+      query = encodeURIComponent(genre);
+      searchRes = await fetch(`${apiBase}/search?q=${query}&type=track&limit=20`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (tracksRes.ok) {
-        const tempTracksData = await tracksRes.json();
-        // Забираем вообще любые треки (даже без превью), нам нужны только их названия!
-        const validItems = tempTracksData.items?.filter((item: any) => item.track) || [];
-        
-        if (validItems.length > 0) {
-          // Берем 15 случайных треков с запасом, чтобы было из чего выбирать
-          rawSpotifyTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 15);
-          finalPlaylistName = playlist.name;
-          break; 
-        }
-      }
+      searchData = await searchRes.json();
     }
 
+    const rawSpotifyTracks = searchData.tracks?.items || [];
+    
     if (rawSpotifyTracks.length === 0) {
-      return NextResponse.json({ message: 'Нет доступных треков в Spotify', tracks: [] });
+      return NextResponse.json({ message: 'Треки не найдены', tracks: [] });
     }
+
+    // Перемешиваем и берем 10 случайных, чтобы рулетка всегда была разной
+    const shuffledTracks = rawSpotifyTracks.sort(() => Math.random() - 0.5).slice(0, 10);
 
     // ==========================
-    // 4. Добываем аудио-превью через iTunes API
+    // 3. Вытягиваем аудио 30 сек из iTunes
     // ==========================
     const finalTracks = [];
 
-    for (const item of rawSpotifyTracks) {
-      if (finalTracks.length >= 4) break; // Собрали 4 штуки — останавливаем цикл
+    for (const item of shuffledTracks) {
+      if (finalTracks.length >= 4) break; // Нам нужно только 4 трека для рулетки
 
-      const artistName = item.track.artists[0]?.name || '';
-      const trackName = item.track.name;
-      // Собираем точный запрос: "Артист Название"
+      const artistName = item.artists?.[0]?.name || '';
+      const trackName = item.name;
       const itunesQuery = encodeURIComponent(`${artistName} ${trackName}`);
 
       try {
         const itunesRes = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=musicTrack&limit=1`);
         const itunesData = await itunesRes.json();
 
-        // Если iTunes нашел песню и у нее есть превью — берем!
         if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].previewUrl) {
           const itunesTrack = itunesData.results[0];
           
           finalTracks.push({
             id: String(itunesTrack.trackId),
-            title: item.track.name, // Название оставляем как в Spotify
-            artist: item.track.artists.map((a: any) => a.name).join(', '),
-            // Берем картинку из iTunes, но если ее нет — фоллбэк на Spotify
-            cover: itunesTrack.artworkUrl100?.replace('100x100bb', '300x300bb') || item.track.album.images?.[0]?.url,
-            audio: itunesTrack.previewUrl // То самое гарантированное аудио!
+            title: trackName,
+            artist: item.artists.map((a: any) => a.name).join(', '),
+            cover: itunesTrack.artworkUrl100?.replace('100x100bb', '300x300bb') || item.album?.images?.[0]?.url,
+            audio: itunesTrack.previewUrl
           });
         }
       } catch (err) {
-        console.error('Ошибка при запросе к iTunes:', err);
+        console.error('Ошибка iTunes:', err);
       }
     }
 
-    // ==========================
-    // 5. Выдача результата
-    // ==========================
     return NextResponse.json({
-      playlist: finalPlaylistName,
+      playlist: `${genre} Selection`,
       tracks: finalTracks
     });
 
   } catch (error: any) {
-    console.error('❌ Критическая ошибка API Spotify:', error);
-    return NextResponse.json({ error: 'Внутренняя ошибка сервера', tracks: [] }, { status: 500 });
+    console.error('Критическая ошибка:', error);
+    return NextResponse.json({ error: 'Внутренняя ошибка', tracks: [] }, { status: 500 });
   }
 }
