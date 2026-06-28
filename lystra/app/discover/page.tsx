@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Dices, Disc3, RefreshCw, Music } from 'lucide-react';
+import { Dices, Disc3, RefreshCw, Music, ExternalLink } from 'lucide-react';
 import CustomAudioPlayer from '@/components/CustomAudioPlayer';
 import genresDataRaw from '@/data/genres.json';
 
@@ -22,6 +22,7 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const wheelRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null); // Реф для плавного скролла
 
   const TAPE_LENGTH = 40;
 
@@ -93,40 +94,44 @@ export default function DiscoverPage() {
       setTracks([]);
     } finally {
       setIsLoadingTracks(false);
+      // Даем React мгновение на отрисовку треков и плавно скроллим вниз
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#121212] text-white p-8 font-sans flex flex-col items-center">
-      <div className="max-w-3xl w-full space-y-12 mt-8">
+    <main className="min-h-screen bg-[#121212] text-white p-4 md:p-8 font-sans flex flex-col items-center overflow-x-hidden">
+      <div className="max-w-3xl w-full space-y-8 md:space-y-12 mt-2 md:mt-8">
         
-        <div className="text-center">
-          <h1 className="text-5xl font-black mb-4">
-            Музыкальная <span className="text-[#a78bfa]">рулетка</span>
+        <div className="text-center px-2">
+          <h1 className="text-4xl md:text-5xl font-black mb-3 md:mb-4 leading-tight">
+            Музыкальная <br className="block sm:hidden" /><span className="text-[#a78bfa]">рулетка</span>
           </h1>
-          <p className="text-neutral-400 text-lg">
+          <p className="text-neutral-400 text-sm md:text-lg">
             Выйди за рамки привычного. Крути барабан и открывай новые жанры.
           </p>
         </div>
 
         {/* Быстрый поиск по жанрам для проверки релевантности */}
-        <form onSubmit={handleSearchSubmit} className="mx-auto w-full max-w-md flex gap-2">
+        <form onSubmit={handleSearchSubmit} className="mx-auto w-full max-w-md flex flex-col sm:flex-row gap-2 px-2 sm:px-0">
           <input
             type="text"
-            placeholder="Введите жанр (например, Synthwave, Post-punk)..."
+            placeholder="Жанр (например, Synthwave)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-grow bg-[#1a1a1a] border border-neutral-800 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-[#a78bfa] transition-colors"
+            className="flex-grow bg-[#1a1a1a] border border-neutral-800 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-[#a78bfa] transition-colors text-sm md:text-base"
           />
           <button
             type="submit"
-            className="bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 rounded-2xl border border-neutral-700 transition-colors cursor-pointer"
+            className="bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 py-3 sm:py-0 rounded-2xl border border-neutral-700 transition-colors cursor-pointer w-full sm:w-auto"
           >
             Поиск
           </button>
         </form>
 
-        <div className="bg-[#1a1a1a]/80 backdrop-blur-xl border border-neutral-800 rounded-3xl p-8 shadow-2xl mx-auto w-full max-w-md flex flex-col items-center">
+        <div className="bg-[#1a1a1a]/80 backdrop-blur-xl border border-neutral-800 rounded-[2rem] p-5 md:p-8 shadow-2xl mx-auto w-full max-w-md flex flex-col items-center">
           
           <div className="relative w-full h-[100px] overflow-hidden rounded-xl mb-8" 
                style={{ WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)' }}>
@@ -156,10 +161,48 @@ export default function DiscoverPage() {
         </div>
 
         {hasResult && (
-          <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-            <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-              <Disc3 className="w-6 h-6 text-[#a78bfa]" />
-              Вайб жанра <span className="text-[#34d399] capitalize">{selectedGenre}</span>
+          // Добавили ref и scroll-mt-8, чтобы при скролле сверху оставался красивый отступ
+          <div ref={resultsRef} className="animate-in fade-in slide-in-from-bottom-8 duration-500 scroll-mt-8">
+            {/* Блок со стримингами по центру МЕЖДУ рулеткой и треками */}
+            <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full mb-8 md:mb-10 mt-4 md:mt-6 px-2">
+              <a 
+                href={`https://open.spotify.com/search/${encodeURIComponent(selectedGenre)}/playlists`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#1DB954] hover:shadow-[0_0_15px_rgba(29,185,84,0.2)] transition-all text-xs md:text-sm font-medium"
+              >
+                Spotify
+              </a>
+              <a 
+                href={`https://music.yandex.ru/search?text=${encodeURIComponent(selectedGenre)}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FFCC00] hover:shadow-[0_0_15px_rgba(255,204,0,0.2)] transition-all text-xs md:text-sm font-medium"
+              >
+                Яндекс Музыка
+              </a>
+              <a 
+                href={`https://music.apple.com/search?term=${encodeURIComponent(selectedGenre)}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
+              >
+                Apple Music
+              </a>
+              <a 
+                href={`https://www.deezer.com/search/${encodeURIComponent(selectedGenre)}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#EF5466] hover:shadow-[0_0_15px_rgba(239,84,102,0.2)] transition-all text-xs md:text-sm font-medium"
+              >
+                Deezer
+              </a>
+            </div>
+
+            {/* Заголовок Вайб Жанра теперь идет ровно над сеткой треков */}
+            <h3 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center gap-2 md:gap-3 px-2 md:px-0 flex-wrap">
+              <Disc3 className="w-5 h-5 md:w-6 md:h-6 text-[#a78bfa] flex-shrink-0" />
+              <span>Вайб жанра</span> <span className="text-[#34d399] capitalize truncate max-w-full">{selectedGenre}</span>
             </h3>
 
             {isLoadingTracks ? (
