@@ -25,6 +25,7 @@ export default function DiscoverPage() {
   const resultsRef = useRef<HTMLDivElement>(null); // Реф для плавного скролла
 
   const TAPE_LENGTH = 40;
+  const ITEM_HEIGHT = 100;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,6 @@ export default function DiscoverPage() {
     setTracks([]);
     fetchExampleTracks(searchQuery);
   };
-  const ITEM_HEIGHT = 100;
 
   const handleSpin = () => {
     if (isSpinning) return;
@@ -84,7 +84,7 @@ export default function DiscoverPage() {
   const fetchExampleTracks = async (genre: string) => {
     setIsLoadingTracks(true);
     try {
-      // Отправляем запрос на наш защищенный роут Spotify
+      // Отправляем запрос на наш защищенный роут 
       const res = await fetch(`/api/spotify-mix?genre=${encodeURIComponent(genre)}`);
       const data = await res.json();
       
@@ -99,6 +99,16 @@ export default function DiscoverPage() {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     }
+  };
+
+  // Умный фоллбэк: пытаемся открыть приложение, если мы на компе (или нет приложухи) — открываем веб-версию
+  const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, appScheme: string, webFallback: string) => {
+    e.preventDefault();
+    window.location.href = appScheme;
+    
+    setTimeout(() => {
+      window.open(webFallback, '_blank');
+    }, 500);
   };
 
   return (
@@ -166,7 +176,8 @@ export default function DiscoverPage() {
             {/* Блок со стримингами по центру МЕЖДУ рулеткой и треками */}
             <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full mb-8 md:mb-10 mt-4 md:mt-6 px-2">
               <a 
-                href={`spotify:search:${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
+                onClick={(e) => handleAppLaunch(e, `spotify:search:${encodeURIComponent(selectedGenre)}`, ['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#1DB954] hover:shadow-[0_0_15px_rgba(29,185,84,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Spotify
@@ -180,13 +191,15 @@ export default function DiscoverPage() {
                 Яндекс Музыка
               </a>
               <a 
-                href={`music://music.apple.com/search?term=${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join('')} 
+                onClick={(e) => handleAppLaunch(e, `music://music.apple.com/search?term=${encodeURIComponent(selectedGenre)}`, ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Apple Music
               </a>
               <a 
-                href={`deezer://www.deezer.com/search/${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
+                onClick={(e) => handleAppLaunch(e, `deezer://www.deezer.com/search/${encodeURIComponent(selectedGenre)}`, ['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#EF5466] hover:shadow-[0_0_15px_rgba(239,84,102,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Deezer
