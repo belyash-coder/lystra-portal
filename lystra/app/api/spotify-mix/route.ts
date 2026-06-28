@@ -1,177 +1,114 @@
 import { NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
+// Жестко отключаем кэш роута
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const genre = searchParams.get('genre');
 
   if (!genre) {
-    return NextResponse.json(
-      { error: 'Жанр не указан' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Жанр не указан', tracks: [] }, { status: 400 });
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.error('❌ Не найдены SPOTIFY_CLIENT_ID или SPOTIFY_CLIENT_SECRET');
-
-    return NextResponse.json(
-      { error: 'Ключи Spotify не настроены' },
-      { status: 500 }
-    );
+    console.error('❌ Не найдены ключи Spotify в переменных окружения');
+    return NextResponse.json({ error: 'Ключи Spotify не настроены', tracks: [] }, { status: 500 });
   }
 
   try {
-    // ==========================
-    // Получаем Access Token
-    // ==========================
+    // Собираем ссылки по частям, чтобы обойти любые искажения текста
+    const accountsBase = ['https://', 'accounts.', 'spotify.', 'com'].join('');
+    const apiBase = ['https://', 'api.', 'spotify.', 'com', '/v1'].join('');
 
-    const credentials = Buffer.from(
-      `${clientId}:${clientSecret}`
-    ).toString('base64');
-
-    const authRes = await fetch(
-      'https://accounts.spotify.com/api/token',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: 'grant_type=client_credentials'
-      }
-    );
+    // ==========================
+    // 1. Получаем Access Token
+    // ==========================
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const authRes = await fetch(`${accountsBase}/api/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
 
     const authData = await authRes.json();
 
-    console.log('Spotify Auth Status:', authRes.status);
-    console.log('Spotify Auth Response:', authData);
-
     if (!authRes.ok || !authData.access_token) {
-      return NextResponse.json(
-        {
-          error: 'Не удалось получить токен Spotify',
-          spotify: authData,
-          tracks: []
-        },
-        { status: 500 }
-      );
+      console.error('❌ Ошибка авторизации Spotify:', authData);
+      return NextResponse.json({ error: 'Не удалось получить токен Spotify', tracks: [] }, { status: 500 });
     }
 
     const token = authData.access_token;
 
     // ==========================
-    // Поиск плейлиста
+    // 2. Поиск плейлистов
     // ==========================
-
-    const query = encodeURIComponent(`${genre} mix`);
-
-    const searchRes = await fetch(
-      `https://api.spotify.com/v1/search?q=${query}&type=playlist&limit=5`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
+    const query = encodeURIComponent(genre);
+    const searchRes = await fetch(`${apiBase}/search?q=${query}&type=playlist&limit=5`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
 
     const searchData = await searchRes.json();
+    const playlists = searchData.playlists?.items || [];
 
-    console.log('Spotify Search Status:', searchRes.status);
-    console.log('Spotify Search Response:', searchData);
-
-    if (!searchRes.ok) {
-      return NextResponse.json(
-        {
-          error: 'Ошибка поиска Spotify',
-          spotify: searchData,
-          tracks: []
-        },
-        { status: 500 }
-      );
+    if (playlists.length === 0) {
+      return NextResponse.json({ message: 'Плейлисты не найдены', tracks: [] });
     }
 
-    const playlist = searchData.playlists?.items?.[0];
+    // ==========================
+    // 3. Умный поиск треков (обход 403 ошибки)
+    // ==========================
+    let tracksData = null;
+    let finalPlaylistName = '';
 
-    if (!playlist) {
-      console.log('Плейлист не найден');
+    for (const playlist of playlists) {
+      if (!playlist) continue;
 
-      return NextResponse.json({
-        tracks: [],
-        message: 'Плейлист не найден'
+      const tracksRes = await fetch(`${apiBase}/playlists/${playlist.id}/tracks?limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-    }
 
-    // ==========================
-    // Получаем треки
-    // ==========================
-
-    const tracksRes = await fetch(
-      `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      // Ищем первый плейлист, который не выдаст 403
+      if (tracksRes.ok) {
+        tracksData = await tracksRes.json();
+        finalPlaylistName = playlist.name;
+        break; 
       }
-    );
-
-    const tracksData = await tracksRes.json();
-
-    console.log('Spotify Tracks Status:', tracksRes.status);
-    console.log(
-      `Получено треков: ${tracksData.items?.length ?? 0}`
-    );
-
-    if (!tracksRes.ok) {
-      return NextResponse.json(
-        {
-          error: 'Ошибка получения треков',
-          spotify: tracksData,
-          tracks: []
-        },
-        { status: 500 }
-      );
     }
 
-    const validTracks =
-      tracksData.items
-        ?.filter((item: any) => item.track)
-        .filter((item: any) => item.track.preview_url)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 4)
-        .map((item: any) => ({
-          id: item.track.id,
-          title: item.track.name,
-          artist: item.track.artists
-            .map((a: any) => a.name)
-            .join(', '),
-          cover: item.track.album.images?.[0]?.url ?? null,
-          audio: item.track.preview_url
-        })) ?? [];
+    if (!tracksData || !tracksData.items) {
+      console.error('❌ Все найденные плейлисты закрыты для API (ошибка 403)');
+      return NextResponse.json({ message: 'Доступные плейлисты не найдены', tracks: [] });
+    }
 
-    console.log(
-      `Треков с preview_url: ${validTracks.length}`
-    );
+    // ==========================
+    // 4. Фильтрация и выдача
+    // ==========================
+    const validTracks = tracksData.items
+      .filter((item: any) => item.track && item.track.preview_url)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 4)
+      .map((item: any) => ({
+        id: String(item.track.id),
+        title: item.track.name,
+        artist: item.track.artists.map((a: any) => a.name).join(', '),
+        cover: item.track.album.images?.[0]?.url ?? null,
+        audio: item.track.preview_url
+      }));
 
     return NextResponse.json({
-      playlist: playlist.name,
+      playlist: finalPlaylistName,
       tracks: validTracks
     });
 
   } catch (error: any) {
-    console.error('Spotify API Error:', error);
-
-    return NextResponse.json(
-      {
-        error: 'Внутренняя ошибка сервера',
-        details: error.message,
-        tracks: []
-      },
-      { status: 500 }
-    );
+    console.error('❌ Критическая ошибка API Spotify:', error);
+    return NextResponse.json({ error: 'Внутренняя ошибка сервера', tracks: [] }, { status: 500 });
   }
 }
