@@ -166,7 +166,7 @@ export default function DiscoverPage() {
             {/* Блок со стримингами по центру МЕЖДУ рулеткой и треками */}
             <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full mb-8 md:mb-10 mt-4 md:mt-6 px-2">
               <a 
-                href={`https://open.spotify.com/search/${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#1DB954] hover:shadow-[0_0_15px_rgba(29,185,84,0.2)] transition-all text-xs md:text-sm font-medium"
@@ -174,7 +174,7 @@ export default function DiscoverPage() {
                 Spotify
               </a>
               <a 
-                href={`https://music.yandex.ru/search?text=${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'music.', 'yandex.', 'ru', '/search?text=', encodeURIComponent(selectedGenre)].join('')} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FFCC00] hover:shadow-[0_0_15px_rgba(255,204,0,0.2)] transition-all text-xs md:text-sm font-medium"
@@ -182,7 +182,7 @@ export default function DiscoverPage() {
                 Яндекс Музыка
               </a>
               <a 
-                href={`https://music.apple.com/search?term=${selectedGenre}`} 
+                href={['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join('')} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
@@ -190,7 +190,7 @@ export default function DiscoverPage() {
                 Apple Music
               </a>
               <a 
-                href={`https://www.deezer.com/search/${encodeURIComponent(selectedGenre)}`} 
+                href={['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#EF5466] hover:shadow-[0_0_15px_rgba(239,84,102,0.2)] transition-all text-xs md:text-sm font-medium"
