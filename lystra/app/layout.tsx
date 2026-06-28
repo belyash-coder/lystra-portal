@@ -5,7 +5,7 @@ import AuthButton from "@/components/AuthButton";
 import MobileMenu from "@/components/MobileMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChatProvider } from "@/components/ChatProvider"; // <-- 1. ДОБАВИЛИ ИМПОРТ
-
+import { Dices } from "lucide-react";
 export const metadata: Metadata = {
   title: "LYSTRA",
   description: "Музыкальный портал для независимых артистов и слушателей",
@@ -38,6 +38,11 @@ export default function RootLayout({
                   <Link href="/" className="text-sm font-medium text-neutral-300 hover:text-white transition-colors">Лента</Link>
                   <Link href="/search" className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors">Поиск</Link>
                   <Link href="/releases" className="text-sm font-medium text-neutral-300 hover:text-[#34d399] transition-colors">Инди-радар</Link>
+                  
+                 <Link href="/discover" className="text-sm font-bold flex items-center gap-1.5 text-[#121212] bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-3 py-1.5 rounded-lg hover:scale-105 transition-transform shadow-[0_0_10px_rgba(52,211,153,0.3)]">
+                    <Dices className="w-4 h-4" /> Random Genre
+                  </Link>
+
                   <Link href="/studio" className="text-sm font-bold bg-[#a78bfa]/10 text-[#a78bfa] border border-[#a78bfa]/20 px-4 py-1.5 rounded-lg hover:bg-[#a78bfa]/20 transition-colors">
                     Студия
                   </Link>
