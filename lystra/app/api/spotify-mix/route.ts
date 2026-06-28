@@ -61,11 +61,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'Плейлисты не найдены', tracks: [] });
     }
 
+// ==========================
+    // 3. Умный поиск треков (обход 403 и отсутствия превью)
     // ==========================
-    // 3. Умный поиск треков (обход 403 ошибки)
-    // ==========================
-    let tracksData = null;
     let finalPlaylistName = '';
+    let finalTracks: any[] = [];
 
     for (const playlist of playlists) {
       if (!playlist) continue;
@@ -74,37 +74,48 @@ export async function GET(request: Request) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      // Ищем первый плейлист, который не выдаст 403
       if (tracksRes.ok) {
-        tracksData = await tracksRes.json();
-        finalPlaylistName = playlist.name;
-        break; 
+        const tempTracksData = await tracksRes.json();
+        
+        // Сразу внутри цикла проверяем, есть ли в этом плейлисте треки С ПРЕВЬЮ
+        const tracksWithAudio = tempTracksData.items?.filter(
+          (item: any) => item.track && item.track.preview_url
+        ) || [];
+
+        if (tracksWithAudio.length > 0) {
+          // Бинго! Плейлист открыт И в нем есть треки с аудио
+          finalPlaylistName = playlist.name;
+          
+          // Форматируем, перемешиваем и забираем 4 штуки
+          finalTracks = tracksWithAudio
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 4)
+            .map((item: any) => ({
+              id: String(item.track.id),
+              title: item.track.name,
+              artist: item.track.artists.map((a: any) => a.name).join(', '),
+              cover: item.track.album.images?.[0]?.url ?? null,
+              audio: item.track.preview_url
+            }));
+            
+          break; // Выходим из цикла, мы нашли то, что нужно
+        } else {
+          console.log(`⚠️ В плейлисте "${playlist.name}" нет треков с превью. Ищем дальше...`);
+        }
       }
     }
 
-    if (!tracksData || !tracksData.items) {
-      console.error('❌ Все найденные плейлисты закрыты для API (ошибка 403)');
-      return NextResponse.json({ message: 'Доступные плейлисты не найдены', tracks: [] });
+    if (finalTracks.length === 0) {
+      console.error('❌ Ни в одном из 5 плейлистов не нашлось треков с доступным аудио-превью.');
+      return NextResponse.json({ message: 'Нет треков с аудио', tracks: [] });
     }
 
     // ==========================
-    // 4. Фильтрация и выдача
+    // 4. Выдача результата
     // ==========================
-    const validTracks = tracksData.items
-      .filter((item: any) => item.track && item.track.preview_url)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 4)
-      .map((item: any) => ({
-        id: String(item.track.id),
-        title: item.track.name,
-        artist: item.track.artists.map((a: any) => a.name).join(', '),
-        cover: item.track.album.images?.[0]?.url ?? null,
-        audio: item.track.preview_url
-      }));
-
     return NextResponse.json({
       playlist: finalPlaylistName,
-      tracks: validTracks
+      tracks: finalTracks
     });
 
   } catch (error: any) {
