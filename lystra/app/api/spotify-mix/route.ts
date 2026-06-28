@@ -8,100 +8,53 @@ export async function GET(request: Request) {
 
   if (!genre) return NextResponse.json({ error: 'Жанр не указан', tracks: [] }, { status: 400 });
 
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) return NextResponse.json({ error: 'Ключи не настроены', tracks: [] }, { status: 500 });
-
   try {
-    const accountsBase = ['https://', 'accounts.', 'spotify.', 'com'].join('');
-    const apiBase = ['https://', 'api.', 'spotify.', 'com', '/v1'].join('');
-
-    // 1. Получаем токен
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const authRes = await fetch(`${accountsBase}/api/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: 'grant_type=client_credentials'
-    });
-    const authData = await authRes.json();
-    const token = authData.access_token;
-
-    // 2. Ищем плейлисты по жанру
+    // 1. Ищем плейлисты по жанру напрямую в Deezer
     const query = encodeURIComponent(genre);
-    const searchRes = await fetch(`${apiBase}/search?q=${query}&type=playlist&limit=20`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const searchRes = await fetch(`https://api.deezer.com/search/playlist?q=${query}&limit=10`);
     const searchData = await searchRes.json();
 
-    // ФИЛЬТР-УБИЙЦА ОШИБКИ 403: Убираем алгоритмические плейлисты от самого Spotify
-    const userPlaylists = (searchData.playlists?.items || []).filter(
-      (p: any) => p && p.owner && p.owner.id !== 'spotify'
-    );
-
-    if (userPlaylists.length === 0) {
-      return NextResponse.json({ message: 'Пользовательские плейлисты не найдены', tracks: [] });
+    const playlists = searchData.data || [];
+    if (playlists.length === 0) {
+      return NextResponse.json({ message: 'Плейлисты не найдены', tracks: [] });
     }
 
-    // 3. Достаем треки из первого попавшегося публичного плейлиста
-    let rawSpotifyTracks: any[] = [];
+    // 2. Ищем рабочий плейлист и вытягиваем треки
+    let rawTracks: any[] = [];
     let finalPlaylistName = '';
 
-    for (const playlist of userPlaylists) {
-      const tracksRes = await fetch(`${apiBase}/playlists/${playlist.id}/tracks?limit=30`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+    for (const playlist of playlists) {
+      const tracksRes = await fetch(`https://api.deezer.com/playlist/${playlist.id}/tracks?limit=50`);
+      const tracksData = await tracksRes.json();
+      
+      // Сразу отсеиваем треки без превью (у Deezer они обычно есть)
+      const validItems = (tracksData.data || []).filter((track: any) => track.preview);
 
-      if (tracksRes.ok) {
-        const tracksData = await tracksRes.json();
-        const validItems = tracksData.items?.filter((item: any) => item.track) || [];
-        
-        if (validItems.length > 0) {
-          rawSpotifyTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 10);
-          finalPlaylistName = playlist.name;
-          break; // Бинго, треки есть, выходим!
-        }
+      if (validItems.length >= 4) {
+        // Перемешиваем и берем с запасом
+        rawTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 10); 
+        finalPlaylistName = playlist.title;
+        break; // Нашли годный плейлист — выходим из цикла
       }
     }
 
-    if (rawSpotifyTracks.length === 0) {
-      return NextResponse.json({ message: 'Треки в плейлистах не найдены', tracks: [] });
+    if (rawTracks.length === 0) {
+      return NextResponse.json({ message: 'Треки с превью не найдены', tracks: [] });
     }
 
-    // 4. Отправляем названия в iTunes за гарантированными превьюшками
-    const finalTracks = [];
-    for (const item of rawSpotifyTracks) {
-      if (finalTracks.length >= 4) break;
-
-      const artistName = item.track.artists?.[0]?.name || '';
-      const trackName = item.track.name;
-      const itunesQuery = encodeURIComponent(`${artistName} ${trackName}`);
-
-      try {
-        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=musicTrack&limit=1`);
-        const itunesData = await itunesRes.json();
-
-        if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].previewUrl) {
-          const itunesTrack = itunesData.results[0];
-          finalTracks.push({
-            id: String(itunesTrack.trackId),
-            title: trackName,
-            artist: artistName,
-            cover: itunesTrack.artworkUrl100?.replace('100x100bb', '300x300bb') || item.track.album?.images?.[0]?.url,
-            audio: itunesTrack.previewUrl
-          });
-        }
-      } catch (err) {
-        console.error('Ошибка iTunes:', err);
-      }
-    }
+    // 3. Форматируем результат для фронтенда
+    const finalTracks = rawTracks.slice(0, 4).map((track: any) => ({
+      id: String(track.id),
+      title: track.title,
+      artist: track.artist.name,
+      cover: track.album.cover_xl || track.album.cover_big || track.album.cover,
+      audio: track.preview
+    }));
 
     return NextResponse.json({ playlist: finalPlaylistName, tracks: finalTracks });
 
   } catch (error: any) {
+    console.error('Ошибка Deezer API:', error);
     return NextResponse.json({ error: 'Внутренняя ошибка сервера', tracks: [] }, { status: 500 });
   }
 }
