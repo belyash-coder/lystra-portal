@@ -19,10 +19,21 @@ export default function DiscoverPage() {
   const [selectedGenre, setSelectedGenre] = useState('');
   const [tracks, setTracks] = useState<any[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const wheelRef = useRef<HTMLDivElement>(null);
 
   const TAPE_LENGTH = 40;
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    setHasResult(true);
+    setSelectedGenre(searchQuery);
+    setTracks([]);
+    fetchExampleTracks(searchQuery);
+  };
   const ITEM_HEIGHT = 100;
 
   const handleSpin = () => {
@@ -97,6 +108,23 @@ export default function DiscoverPage() {
             Выйди за рамки привычного. Крути барабан и открывай новые жанры.
           </p>
         </div>
+
+        {/* Быстрый поиск по жанрам для проверки релевантности */}
+        <form onSubmit={handleSearchSubmit} className="mx-auto w-full max-w-md flex gap-2">
+          <input
+            type="text"
+            placeholder="Введите жанр (например, Synthwave, Post-punk)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-grow bg-[#1a1a1a] border border-neutral-800 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-[#a78bfa] transition-colors"
+          />
+          <button
+            type="submit"
+            className="bg-neutral-800 hover:bg-neutral-700 text-white font-medium px-6 rounded-2xl border border-neutral-700 transition-colors cursor-pointer"
+          >
+            Поиск
+          </button>
+        </form>
 
         <div className="bg-[#1a1a1a]/80 backdrop-blur-xl border border-neutral-800 rounded-3xl p-8 shadow-2xl mx-auto w-full max-w-md flex flex-col items-center">
           

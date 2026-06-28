@@ -30,11 +30,11 @@ export async function GET(request: Request) {
       // Сразу отсеиваем треки без превью (у Deezer они обычно есть)
       const validItems = (tracksData.data || []).filter((track: any) => track.preview);
 
-      if (validItems.length >= 4) {
-        // Перемешиваем и берем с запасом
+      if (validItems.length > 0) {
+        // Перемешиваем и берем с запасом до 10 треков
         rawTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 10); 
         finalPlaylistName = playlist.title;
-        break; // Нашли годный плейлист — выходим из цикла
+        if (rawTracks.length >= 6) break; // Если нашли хороший массив треков, останавливаемся
       }
     }
 
@@ -42,8 +42,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'Треки с превью не найдены', tracks: [] });
     }
 
-    // 3. Форматируем результат для фронтенда
-    const finalTracks = rawTracks.slice(0, 4).map((track: any) => ({
+    // 3. Форматируем результат для фронтенда (отдаем все найденные треки, до 10 шт)
+    const finalTracks = rawTracks.map((track: any) => ({
       id: String(track.id),
       title: track.title,
       artist: track.artist.name,
