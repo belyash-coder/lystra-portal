@@ -180,7 +180,7 @@ export default function DiscoverPage() {
                 Яндекс Музыка
               </a>
               <a 
-                href={`music://search?term=${encodeURIComponent(selectedGenre)}`} 
+                href={`music://music.apple.com/search?term=${encodeURIComponent(selectedGenre)}`} 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Apple Music
