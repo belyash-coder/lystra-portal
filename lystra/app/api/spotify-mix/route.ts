@@ -62,56 +62,73 @@ export async function GET(request: Request) {
     }
 
 // ==========================
-    // 3. Умный поиск треков (обход 403 и отсутствия превью)
+    // 3. Умный поиск треков (База Spotify)
     // ==========================
+    let rawSpotifyTracks: any[] = [];
     let finalPlaylistName = '';
-    let finalTracks: any[] = [];
 
     for (const playlist of playlists) {
       if (!playlist) continue;
 
-      const tracksRes = await fetch(`${apiBase}/playlists/${playlist.id}/tracks?limit=100`, {
+      const tracksRes = await fetch(`${apiBase}/playlists/${playlist.id}/tracks?limit=50`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (tracksRes.ok) {
         const tempTracksData = await tracksRes.json();
+        // Забираем вообще любые треки (даже без превью), нам нужны только их названия!
+        const validItems = tempTracksData.items?.filter((item: any) => item.track) || [];
         
-        // Сразу внутри цикла проверяем, есть ли в этом плейлисте треки С ПРЕВЬЮ
-        const tracksWithAudio = tempTracksData.items?.filter(
-          (item: any) => item.track && item.track.preview_url
-        ) || [];
-
-        if (tracksWithAudio.length > 0) {
-          // Бинго! Плейлист открыт И в нем есть треки с аудио
+        if (validItems.length > 0) {
+          // Берем 15 случайных треков с запасом, чтобы было из чего выбирать
+          rawSpotifyTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 15);
           finalPlaylistName = playlist.name;
-          
-          // Форматируем, перемешиваем и забираем 4 штуки
-          finalTracks = tracksWithAudio
-            .sort(() => Math.random() - 0.5)
-            .slice(0, 4)
-            .map((item: any) => ({
-              id: String(item.track.id),
-              title: item.track.name,
-              artist: item.track.artists.map((a: any) => a.name).join(', '),
-              cover: item.track.album.images?.[0]?.url ?? null,
-              audio: item.track.preview_url
-            }));
-            
-          break; // Выходим из цикла, мы нашли то, что нужно
-        } else {
-          console.log(`⚠️ В плейлисте "${playlist.name}" нет треков с превью. Ищем дальше...`);
+          break; 
         }
       }
     }
 
-    if (finalTracks.length === 0) {
-      console.error('❌ Ни в одном из 5 плейлистов не нашлось треков с доступным аудио-превью.');
-      return NextResponse.json({ message: 'Нет треков с аудио', tracks: [] });
+    if (rawSpotifyTracks.length === 0) {
+      return NextResponse.json({ message: 'Нет доступных треков в Spotify', tracks: [] });
     }
 
     // ==========================
-    // 4. Выдача результата
+    // 4. Добываем аудио-превью через iTunes API
+    // ==========================
+    const finalTracks = [];
+
+    for (const item of rawSpotifyTracks) {
+      if (finalTracks.length >= 4) break; // Собрали 4 штуки — останавливаем цикл
+
+      const artistName = item.track.artists[0]?.name || '';
+      const trackName = item.track.name;
+      // Собираем точный запрос: "Артист Название"
+      const itunesQuery = encodeURIComponent(`${artistName} ${trackName}`);
+
+      try {
+        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${itunesQuery}&entity=musicTrack&limit=1`);
+        const itunesData = await itunesRes.json();
+
+        // Если iTunes нашел песню и у нее есть превью — берем!
+        if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].previewUrl) {
+          const itunesTrack = itunesData.results[0];
+          
+          finalTracks.push({
+            id: String(itunesTrack.trackId),
+            title: item.track.name, // Название оставляем как в Spotify
+            artist: item.track.artists.map((a: any) => a.name).join(', '),
+            // Берем картинку из iTunes, но если ее нет — фоллбэк на Spotify
+            cover: itunesTrack.artworkUrl100?.replace('100x100bb', '300x300bb') || item.track.album.images?.[0]?.url,
+            audio: itunesTrack.previewUrl // То самое гарантированное аудио!
+          });
+        }
+      } catch (err) {
+        console.error('Ошибка при запросе к iTunes:', err);
+      }
+    }
+
+    // ==========================
+    // 5. Выдача результата
     // ==========================
     return NextResponse.json({
       playlist: finalPlaylistName,
