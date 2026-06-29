@@ -101,19 +101,17 @@ export default function DiscoverPage() {
     }
   };
 
-  // Идеальный фоллбэк: на мобильных даем отработать естественному Universal Link
-  const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, link: string) => {
+  // Чистый и рабочий обработчик для Spotify: на мобилке системный протокол, на ПК — веб-версия
+  const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, fallbackLink: string) => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // На мобилке мы НЕ блокируем клик (нет e.preventDefault).
-      // Телефон видит естественный переход по ссылке стриминга и сам перехватывает 
-      // его в приложение (если оно установлено).
+      // На мобилке не блокируем клик — отрабатывает href="spotify:search:..."
       return; 
     } else {
-      // На компе перехватываем клик и открываем аккуратно в новой вкладке
+      // На компе перехватываем клик и открываем веб-версию в новой вкладке
       e.preventDefault();
-      window.open(link, '_blank');
+      window.open(fallbackLink, '_blank');
     }
   };
 
@@ -183,31 +181,18 @@ export default function DiscoverPage() {
             <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full mb-8 md:mb-10 mt-4 md:mt-6 px-2">
               <a 
                 href={`spotify:search:${encodeURIComponent(selectedGenre)}`} 
-                onClick={(e) => handleAppLaunch(e, ['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
+                onClick={(e) => handleAppLaunch(e, ['https://', 'open.spotify.com/search/', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#1DB954] hover:shadow-[0_0_15px_rgba(29,185,84,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Spotify
               </a>
               <a 
-                href={['https://', 'music.', 'yandex.', 'ru', '/search?text=', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, ['https://', 'music.', 'yandex.', 'ru', '/search?text=', encodeURIComponent(selectedGenre)].join(''))}
+                href={['https://', 'music.yandex.ru/search?text=', encodeURIComponent(selectedGenre)].join('')} 
+                target="_blank" 
+                rel="noopener noreferrer" 
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FFCC00] hover:shadow-[0_0_15px_rgba(255,204,0,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Яндекс Музыка
-              </a>
-              <a 
-                href={['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
-                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
-              >
-                Apple Music
-              </a>
-              <a 
-                href={['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, ['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
-                className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#EF5466] hover:shadow-[0_0_15px_rgba(239,84,102,0.2)] transition-all text-xs md:text-sm font-medium"
-              >
-                Deezer
               </a>
             </div>
 
