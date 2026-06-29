@@ -77,6 +77,7 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
       document.querySelectorAll("audio").forEach((audio) => {
         if (audio !== audioRef.current) {
           audio.pause();
+          audio.currentTime = 0; // Сбрасываем прогресс чужих треков в самое начало
         }
       });
       audioRef.current.play();
