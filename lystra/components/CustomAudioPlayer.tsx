@@ -160,7 +160,7 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
         )}
       </button>
 
-      <div className="flex-1 relative flex items-center h-6 group/slider cursor-pointer touch-pan-y">
+      <div className={`flex-1 relative flex items-center h-6 group/slider touch-pan-y transition-opacity duration-300 ${isPlaying ? 'cursor-pointer opacity-100' : 'pointer-events-none opacity-50'}`}>
         <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden pointer-events-none">
           <div
             className="h-full bg-[#a78bfa] transition-all duration-75 ease-linear rounded-full"
@@ -169,7 +169,7 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
         </div>
         
         <div 
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow pointer-events-none opacity-0 group-hover/slider:opacity-100 transition-opacity z-10"
+          className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow pointer-events-none opacity-0 transition-opacity z-10 ${isPlaying ? 'group-hover/slider:opacity-100' : ''}`}
           style={{ left: `calc(${progress}% - 6px)` }}
         />
 
@@ -180,7 +180,8 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
           step="0.1"
           value={progress || 0}
           onChange={handleSeek}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-pan-y"
+          disabled={!isPlaying}
+          className={`absolute inset-0 w-full h-full opacity-0 z-20 touch-pan-y ${isPlaying ? 'cursor-pointer' : 'cursor-default'}`}
         />
       </div>
     </div>
