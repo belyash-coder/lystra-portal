@@ -160,7 +160,7 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
         )}
       </button>
 
-      <div className="flex-1 relative flex items-center h-6 group/slider cursor-pointer">
+      <div className="flex-1 relative flex items-center h-6 group/slider cursor-pointer touch-pan-y">
         <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden pointer-events-none">
           <div
             className="h-full bg-[#a78bfa] transition-all duration-75 ease-linear rounded-full"
@@ -180,7 +180,7 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
           step="0.1"
           value={progress || 0}
           onChange={handleSeek}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-pan-y"
         />
       </div>
     </div>
