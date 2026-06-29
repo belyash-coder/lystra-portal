@@ -101,14 +101,34 @@ export default function DiscoverPage() {
     }
   };
 
-  // Умный фоллбэк: пытаемся открыть приложение, если мы на компе (или нет приложухи) — открываем веб-версию
+  // Умный фоллбэк с проверкой устройства и статуса вкладки
   const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, appScheme: string, webFallback: string) => {
     e.preventDefault();
-    window.location.href = appScheme;
     
-    setTimeout(() => {
+    // Проверяем, с телефона ли сидит юзер
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // 1. Отправляем системную команду открыть приложение
+      window.location.href = appScheme;
+      
+      // 2. Даем системе 1.5 секунды. Если браузер так и остался на экране (приложения нет)
+      const timeout = setTimeout(() => {
+        if (!document.hidden) {
+          // Уводим на веб-версию в текущей вкладке (так Chrome не заблокирует переход)
+          window.location.href = webFallback; 
+        }
+      }, 1500);
+      
+      // 3. Если приложение открылось, браузер уходит в фон — мы убиваем таймер
+      const clearFallback = () => clearTimeout(timeout);
+      window.addEventListener('visibilitychange', clearFallback, { once: true });
+      window.addEventListener('pagehide', clearFallback, { once: true });
+      
+    } else {
+      // На компе никаких костылей с системными протоколами — сразу веб-версия в новой вкладке
       window.open(webFallback, '_blank');
-    }, 500);
+    }
   };
 
   return (
