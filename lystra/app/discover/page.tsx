@@ -101,7 +101,7 @@ export default function DiscoverPage() {
     }
   };
 
-  // Умный фоллбэк с проверкой устройства и статуса вкладки
+  // Умный фоллбэк: открываем приложение на телефоне без дублирующих вкладок
   const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, appScheme: string, webFallback: string) => {
     e.preventDefault();
     
@@ -109,24 +109,11 @@ export default function DiscoverPage() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // 1. Отправляем системную команду открыть приложение
+      // На мобилке строго отправляем только одну команду — открыть приложение.
+      // Без таймеров, чтобы браузер не плодил лишние вкладки.
       window.location.href = appScheme;
-      
-      // 2. Даем системе 1.5 секунды. Если браузер так и остался на экране (приложения нет)
-      const timeout = setTimeout(() => {
-        if (!document.hidden) {
-          // Уводим на веб-версию в текущей вкладке (так Chrome не заблокирует переход)
-          window.location.href = webFallback; 
-        }
-      }, 1500);
-      
-      // 3. Если приложение открылось, браузер уходит в фон — мы убиваем таймер
-      const clearFallback = () => clearTimeout(timeout);
-      window.addEventListener('visibilitychange', clearFallback, { once: true });
-      window.addEventListener('pagehide', clearFallback, { once: true });
-      
     } else {
-      // На компе никаких костылей с системными протоколами — сразу веб-версия в новой вкладке
+      // На компе открываем веб-версию в новой вкладке
       window.open(webFallback, '_blank');
     }
   };
@@ -212,7 +199,7 @@ export default function DiscoverPage() {
               </a>
               <a 
                 href={['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, `music://music.apple.com/search?term=${encodeURIComponent(selectedGenre)}`, ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
+                onClick={(e) => handleAppLaunch(e, ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre), '&app=music'].join(''), ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Apple Music
