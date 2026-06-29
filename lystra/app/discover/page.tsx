@@ -101,20 +101,19 @@ export default function DiscoverPage() {
     }
   };
 
-  // Умный фоллбэк: открываем приложение на телефоне без дублирующих вкладок
-  const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, appScheme: string, webFallback: string) => {
-    e.preventDefault();
-    
-    // Проверяем, с телефона ли сидит юзер
+  // Идеальный фоллбэк: на мобильных даем отработать естественному Universal Link
+  const handleAppLaunch = (e: React.MouseEvent<HTMLAnchorElement>, link: string) => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // На мобилке строго отправляем только одну команду — открыть приложение.
-      // Без таймеров, чтобы браузер не плодил лишние вкладки.
-      window.location.href = appScheme;
+      // На мобилке мы НЕ блокируем клик (нет e.preventDefault).
+      // Телефон видит естественный переход по ссылке стриминга и сам перехватывает 
+      // его в приложение (если оно установлено).
+      return; 
     } else {
-      // На компе открываем веб-версию в новой вкладке
-      window.open(webFallback, '_blank');
+      // На компе перехватываем клик и открываем аккуратно в новой вкладке
+      e.preventDefault();
+      window.open(link, '_blank');
     }
   };
 
@@ -184,29 +183,28 @@ export default function DiscoverPage() {
             <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full mb-8 md:mb-10 mt-4 md:mt-6 px-2">
               <a 
                 href={['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, `spotify:search:${encodeURIComponent(selectedGenre)}`, ['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
+                onClick={(e) => handleAppLaunch(e, ['https://', 'open.', 'spotify.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#1DB954] hover:shadow-[0_0_15px_rgba(29,185,84,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Spotify
               </a>
               <a 
                 href={['https://', 'music.', 'yandex.', 'ru', '/search?text=', encodeURIComponent(selectedGenre)].join('')} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                onClick={(e) => handleAppLaunch(e, ['https://', 'music.', 'yandex.', 'ru', '/search?text=', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FFCC00] hover:shadow-[0_0_15px_rgba(255,204,0,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Яндекс Музыка
               </a>
               <a 
                 href={['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, ['music://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''), ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
+                onClick={(e) => handleAppLaunch(e, ['https://', 'music.', 'apple.', 'com', '/search?term=', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#FA243C] hover:shadow-[0_0_15px_rgba(250,36,60,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Apple Music
               </a>
               <a 
                 href={['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join('')} 
-                onClick={(e) => handleAppLaunch(e, `deezer://www.deezer.com/search/${encodeURIComponent(selectedGenre)}`, ['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
+                onClick={(e) => handleAppLaunch(e, ['https://', 'www.', 'deezer.', 'com', '/search/', encodeURIComponent(selectedGenre)].join(''))}
                 className="flex items-center gap-1.5 md:gap-2 px-4 py-2 md:px-6 md:py-2.5 bg-neutral-900/50 border border-neutral-800 rounded-full text-neutral-400 hover:text-white hover:border-[#EF5466] hover:shadow-[0_0_15px_rgba(239,84,102,0.2)] transition-all text-xs md:text-sm font-medium"
               >
                 Deezer
