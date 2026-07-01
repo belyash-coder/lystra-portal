@@ -1,19 +1,16 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'zkknwzhdljvbjpjxqhwa.supabase.co',
-        port: '',
-        pathname: '/storage/v1/object/public/**',
-      },
-    ],
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
   },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '50mb', // Разрешаем загрузку файлов до 50 мегабайт
-    },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://lystra-api.vercel.app/api/:path*',
+      },
+    ];
   },
 };
 

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import "./globals.css";
 import AuthButton from "@/components/AuthButton";
 import MobileMenu from "@/components/MobileMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChatProvider } from "@/components/ChatProvider"; // <-- 1. ДОБАВИЛИ ИМПОРТ
 import { Dices } from "lucide-react";
+
 export const metadata: Metadata = {
   title: "LYSTRA",
   description: "Музыкальный портал для независимых артистов и слушателей",
@@ -17,7 +19,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <Script 
+          src="https://telegram.org/js/telegram-web-app.js" 
+          strategy="beforeInteractive" 
+        />
+      </head>
       <body className="bg-[#121212] text-white min-h-screen flex flex-col font-sans overflow-x-hidden">
         
         {/* 2. ОБЕРНУЛИ ВЕСЬ КОНТЕНТ В ПРОВАЙДЕР */}

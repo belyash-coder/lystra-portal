@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function updateSession(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -15,7 +15,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          // 1. Устанавливаем куки во входящем запросе (без options)
+          // 1. Устанавливаем куки во входящем запросе
           cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value)
           })
@@ -25,7 +25,7 @@ export async function updateSession(request: NextRequest) {
             request,
           })
           
-          // 3. Устанавливаем куки в исходящем ответе (с options)
+          // 3. Устанавливаем куки в исходящем ответе
           cookiesToSet.forEach(({ name, value, options }) => {
             supabaseResponse.cookies.set(name, value, options)
           })
@@ -43,4 +43,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   return supabaseResponse
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
