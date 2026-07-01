@@ -62,6 +62,26 @@ export default function TmaRoulettePage() {
       if (data.tracks && data.tracks.length > 0) {
         // Логика 1-в-1 как в мобильном приложении: просто передаем полученные треки
         setTracks(data.tracks);
+
+        // Плавный скролл к блоку с результатами (увеличенная задержка)
+        setTimeout(() => {
+          const resultsEl = document.getElementById('results-start');
+          if (resultsEl) {
+            resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 600);{/* Кнопка запуска */}
+        <button 
+          onClick={handleSpin} 
+          disabled={isSpinning}
+          style={{
+            ...styles.spinButton,
+            backgroundColor: isSpinning ? '#1A1A1E' : '#A78BFA', // Лавандовая кнопка
+            color: isSpinning ? '#71717A' : '#0B0B0F',
+            cursor: isSpinning ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {isSpinning ? 'Ищем вайб...' : 'Крутить рулетку'}
+        </button>
       }
     } catch (error) {
       console.error("Ошибка загрузки треков:", error);
@@ -113,6 +133,25 @@ export default function TmaRoulettePage() {
       setPlayingTrackId(null);
       setTrackProgress(0);
     };
+  };
+
+  const openStreamingApp = (platform: 'spotify' | 'yandex') => {
+    if (!selectedGenre) return;
+    
+    const query = encodeURIComponent(selectedGenre);
+    let url = '';
+
+    if (platform === 'spotify') {
+      url = `https://open.spotify.com/search/${query}`;
+    } else if (platform === 'yandex') {
+      url = `https://music.yandex.ru/search?text=${query}`;
+    }
+
+    if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+      (window as any).Telegram.WebApp.openLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
   };
 
   const handleSpin = () => {
@@ -210,15 +249,8 @@ export default function TmaRoulettePage() {
             cursor: isSpinning ? 'not-allowed' : 'pointer'
           }}
         >
-          <svg style={{ marginRight: '8px' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <circle cx="15.5" cy="15.5" r="1.5"/>
-                <circle cx="15.5" cy="8.5" r="1.5"/>
-                <circle cx="8.5" cy="15.5" r="1.5"/>
-              </svg>
-              {isSpinning ? 'Ищем вайб...' : 'Крутить рулетку'}
-            </button>
+          {isSpinning ? 'Ищем вайб...' : 'Крутить рулетку'}
+        </button>
 
             {/* Анимированный спиннер загрузки треков */}
             {isLoadingTracks && (
@@ -230,7 +262,13 @@ export default function TmaRoulettePage() {
 
             {/* Вывод списка треков */}
             {!isLoadingTracks && tracks.length > 0 && (
-              <div style={styles.resultsContainer}>
+              <div id="results-start" style={styles.resultsContainer}>
+                
+                {/* Мятная плашка с выпавшим жанром */}
+                <div style={styles.resultGenreWrapper}>
+                  <span style={styles.resultGenreText}>{selectedGenre}</span>
+                </div>
+
                 {tracks.map((track) => {
                   const isCurrentTrackPlaying = playingTrackId === track.id && isPlaying;
                   return (
@@ -274,6 +312,22 @@ export default function TmaRoulettePage() {
                     </div>
                   );
                 })}
+
+                {/* Кнопки стримингов */}
+                <div style={styles.platformsContainer}>
+                  <button 
+                    style={{...styles.platformButton, borderColor: '#A78BFA'}} 
+                    onClick={() => openStreamingApp('spotify')}
+                  >
+                    <span style={styles.platformButtonText}>Spotify</span>
+                  </button>
+                  <button 
+                    style={{...styles.platformButton, borderColor: '#6EE7B7'}} 
+                    onClick={() => openStreamingApp('yandex')}
+                  >
+                    <span style={styles.platformButtonText}>Яндекс Музыка</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -409,7 +463,24 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: 'column',
     gap: '12px',
     marginTop: '8px',
-    width: '100%'
+    width: '100%',
+    scrollMarginTop: '24px' // Чтобы при скролле оставался красивый отступ сверху
+  },
+  resultGenreWrapper: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '8px',
+    marginTop: '8px'
+  },
+  resultGenreText: {
+    color: '#6EE7B7',
+    border: '1px solid #6EE7B7',
+    backgroundColor: 'rgba(110, 231, 183, 0.08)',
+    padding: '6px 16px',
+    borderRadius: '100px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    textTransform: 'capitalize'
   },
   trackCard: {
     display: 'flex',
@@ -481,5 +552,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: 'center',
     cursor: 'pointer',
     transition: 'all 0.2s ease'
+  },
+  platformsContainer: {
+    display: 'flex',
+    gap: '12px',
+    marginTop: '16px',
+    width: '100%'
+  },
+  platformButton: {
+    flex: 1,
+    backgroundColor: '#141419',
+    padding: '14px',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
+  },
+  platformButtonText: {
+    color: '#FFFFFF',
+    fontSize: '14px',
+    fontWeight: 600
   }
 };
