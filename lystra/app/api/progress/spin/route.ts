@@ -1,4 +1,6 @@
 // app/api/progress/spin/route.ts
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -67,6 +69,11 @@ export async function POST(req: Request) {
     // "Везунчик"
     if (newSpins >= 10) {
       await awardAchievement('lucky_ten');
+    }
+
+    // "Мастер рулетки"
+    if (newSpins >= 100) {
+      await awardAchievement('spin_master');
     }
 
     return NextResponse.json({
