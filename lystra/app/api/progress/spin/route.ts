@@ -5,12 +5,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Сервисный клиент для безопасной работы с БД со стороны сервера
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: Request) {
+  // Инициализируем клиента только в момент запроса, чтобы не крашить сборку Vercel
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   try {
     // 1. Верификация пользователя по токену
     const authHeader = req.headers.get('Authorization');
