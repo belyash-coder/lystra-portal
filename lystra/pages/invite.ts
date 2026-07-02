@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
+import type { NextApiRequest, NextApiResponse } from 'next'
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  const id = req.query.id as string;
 
   if (!id) {
-    return new NextResponse('ID не найден', { status: 400 });
+    return res.status(400).send('ID не найден');
   }
 
   const html = `
@@ -32,9 +31,6 @@ export async function GET(request: Request) {
     </html>
   `;
 
-  return new NextResponse(html, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-    },
-  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.status(200).send(html);
 }
