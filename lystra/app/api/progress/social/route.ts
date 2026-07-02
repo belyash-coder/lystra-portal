@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     // Парсим body, чтобы понять, какое действие совершил юзер
     const body = await req.json();
     const action = body.action; // Ожидаем 'share' или 'add_friend'
+    const friend_id = body.friend_id; // ID друга, которого добавляем
 
     if (!action) return NextResponse.json({ error: 'Action is required' }, { status: 400 });
 
@@ -62,6 +63,18 @@ export async function POST(req: Request) {
     if (action === 'share') {
       await awardAchievement('influencer');
     } else if (action === 'add_friend') {
+      if (!friend_id) return NextResponse.json({ error: 'Friend ID is required' }, { status: 400 });
+
+      // Записываем дружбу в таблицу (измени 'friends' на свое название таблицы, если оно другое)
+      const { error: friendError } = await supabase
+        .from('friends')
+        .insert({ user_id: user.id, friend_id: friend_id });
+
+      if (friendError) {
+        console.error('Ошибка записи в друзья:', friendError);
+        // Если ошибка из-за того, что они уже друзья (нарушение уникальности), код пойдет дальше и не упадет
+      }
+
       await awardAchievement('social_butterfly');
     }
 

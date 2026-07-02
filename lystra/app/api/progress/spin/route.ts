@@ -6,13 +6,18 @@ import { createClient } from '@supabase/supabase-js';
 
 // Сервисный клиент для безопасной работы с БД со стороны сервера
 export async function POST(req: Request) {
-  // Инициализируем клиента только в момент запроса, чтобы не крашить сборку Vercel
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
+    // Сначала проверяем, существуют ли вообще ключи на сервере
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Ключи базы данных (Supabase) не найдены на сервере Vercel. Проверьте настройки Environment Variables.');
+    }
+
+    // Инициализируем клиента внутри try, чтобы в случае сбоя приложение получило понятный ответ
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     // 1. Верификация пользователя по токену
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

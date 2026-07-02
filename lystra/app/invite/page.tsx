@@ -6,13 +6,14 @@ import { useSearchParams } from 'next/navigation';
 function InviteContent() {
   const searchParams = useSearchParams();
   const id = searchParams?.get('id') || '';
+  const type = searchParams?.get('type') || 'profile';
 
   useEffect(() => {
-    // Тот самый JS-редирект (deep link) в мобильное приложение LYSTRA
+    // Умный JS-редирект с учетом типа ссылки (профиль или коллекция)
     if (id) {
-      window.location.href = `lystra-app://profile/${id}`;
+      window.location.href = `lystra-app://${type}/${id}`;
     }
-  }, [id]);
+  }, [id, type]);
 
   return (
     <div style={{
@@ -31,7 +32,7 @@ function InviteContent() {
     }}>
       <div style={{ textAlign: 'center', padding: '20px' }}>
         <h2>Загрузка профиля...</h2>
-        <p>Если приложение не открылось автоматически, нажмите <a href={`lystra-app://profile/${id}`} style={{ color: '#98FF98', textDecoration: 'none' }}>сюда</a>.</p>
+        <p>Если приложение не открылось автоматически, нажмите <a href={`lystra-app://${type}/${id}`} style={{ color: '#98FF98', textDecoration: 'none' }}>сюда</a>.</p>
       </div>
     </div>
   );
