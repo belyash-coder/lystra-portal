@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 
 function InviteContent() {
   const searchParams = useSearchParams();
-  const id = searchParams.get('id') || '';
+  const id = searchParams?.get('id') || '';
 
   useEffect(() => {
     // Тот самый JS-редирект (deep link) в мобильное приложение LYSTRA
