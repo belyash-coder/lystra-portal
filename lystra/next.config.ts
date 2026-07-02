@@ -7,9 +7,13 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: 'https://lystra-api.vercel.app/api/:path*',
+        source: '/invite',
+        destination: '/invite.html',
       },
+      {
+        source: '/api/invite',
+        destination: '/invite.html',
+      }
     ];
   },
 };
