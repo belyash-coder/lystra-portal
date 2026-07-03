@@ -63,20 +63,24 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
   }
 
   // 2. Проверяем, есть ли этот альбом в коллекции текущего пользователя
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
   let isAddedToCollection = false;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      const { data } = await supabase
+        .from('collections')
+        .select('id')
+        .match({ user_id: user.id, item_id: id, item_type: 'album' })
+        .maybeSingle();
 
-  if (user) {
-    const { data } = await supabase
-      .from('collections')
-      .select('id')
-      .match({ user_id: user.id, item_id: id, item_type: 'album' })
-      .maybeSingle(); // maybeSingle не выдаст ошибку, если запись не найдена
-
-    if (data) {
-      isAddedToCollection = true;
+      if (data) {
+        isAddedToCollection = true;
+      }
     }
+  } catch (error) {
+    console.error("Ошибка подключения к Supabase. Загружаем страницу в гостевом режиме:", error);
   }
 
   // 3. Запрашиваем дополнительные данные для сайдбара
