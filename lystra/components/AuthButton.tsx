@@ -284,14 +284,15 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
           </div>
 
           <div className={`p-3 ${isMobile ? 'pt-6' : 'bg-[#121212]'} flex justify-end`}>
-            <form action={signOut} className="w-full">
-              <button 
-                type="submit"
-                className="w-full text-center text-xs text-neutral-400 hover:text-red-400 border border-red-500/30 hover:border-red-500/60 px-3 py-2 rounded-xl transition-all active:scale-95 font-medium"
-              >
-                Выйти
-              </button>
-            </form>
+            <button 
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = '/';
+              }}
+              className="w-full text-center text-xs text-neutral-400 hover:text-red-400 border border-red-500/30 hover:border-red-500/60 px-3 py-2 rounded-xl transition-all active:scale-95 font-medium"
+            >
+              Выйти
+            </button>
           </div>
         </div>
       )}
