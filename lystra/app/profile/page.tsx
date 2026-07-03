@@ -10,6 +10,18 @@ export default async function ProfileRedirectPage() {
     redirect('/'); 
   }
 
-  // Мгновенно перекидываем пользователя на его полноценную страницу профиля с ID
-  redirect(`/profile/${user.id}`);
+  // Получаем username для формирования ссылки
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', user.id)
+    .single();
+
+  // Перекидываем пользователя на страницу с никнеймом
+  if (profile?.username) {
+    redirect(`/profile/${profile.username}`);
+  } else {
+    // Резервный вариант, если никнейм не установлен
+    redirect(`/profile/${user.id}`);
+  }
 }
