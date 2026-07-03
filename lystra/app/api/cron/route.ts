@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -11,10 +13,6 @@ export async function GET(request: Request) {
   console.log('Крон запущен. Проверяем авторизацию...');
   
   const authHeader = request.headers.get('authorization');
-  
-  console.log('Пришел заголовок:', authHeader);
-  console.log('Сервер видит пароль:', process.env.CRON_SECRET);
-  
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     console.error('Ошибка: Неверный или отсутствующий CRON_SECRET');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -24,7 +22,7 @@ export async function GET(request: Request) {
     console.log('Авторизация пройдена. Получаем пользователей...');
     const { data: users, error } = await supabase
       .from('profiles')
-      .select('id, push_token, last_active_at')
+      .select('id, push_token, timezone, last_active_at')
       .not('push_token', 'is', null);
 
     if (error) throw error;
@@ -35,17 +33,48 @@ export async function GET(request: Request) {
 
     const notifications = [];
     const now = new Date();
-    const genreOfTheDay = "Synthwave"; // Заглушка
+    const genreOfTheDay = "Synthwave"; // В будущем автоматизируешь под "Жанр дня"
 
     for (const user of users) {
-      // ВРЕМЕННО ДЛЯ ТЕСТА: отправляем пуши всем прямо сейчас без привязки к 12 часам
-      notifications.push({
-        to: user.push_token,
-        sound: 'default',
-        title: '🧪 ТЕСТ: Жанр дня готов!',
-        body: `Сегодня слушаем ${genreOfTheDay}. Заходи за новой музыкой!`,
-        data: { type: 'genre_of_the_day' },
-      });
+      if (!user.timezone) continue;
+
+      let localHour = -1;
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', { 
+          hour: 'numeric', hour12: false, timeZone: user.timezone 
+        });
+        localHour = parseInt(formatter.format(now));
+      } catch (e) {
+        console.error(`Неверный таймзон для юзера ${user.id}: ${user.timezone}`);
+        continue;
+      }
+
+      // Пуши уходят только тогда, когда у пользователя на часах ровно 12:00 дня
+      if (localHour === 12) {
+        // 1. Уведомление о Жанре Дня
+        notifications.push({
+          to: user.push_token,
+          sound: 'default',
+          title: '🌟 Жанр дня готов!',
+          body: `Сегодня слушаем ${genreOfTheDay}. Заходи за новой музыкой!`,
+          data: { type: 'genre_of_the_day' },
+        });
+
+        // 2. Проверка неактивности (5, 10, 30 дней)
+        if (user.last_active_at) {
+          const lastActive = new Date(user.last_active_at);
+          const diffMs = now.getTime() - lastActive.getTime();
+          const daysInactive = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+          if (daysInactive === 5) {
+            notifications.push({ to: user.push_token, sound: 'default', title: '🎲 Рулетка скучает!', body: 'Давно не искали новую музыку? Пора крутануть барабан!', data: { type: 'roulette_reminder' }});
+          } else if (daysInactive === 10) {
+            notifications.push({ to: user.push_token, sound: 'default', title: '📡 Радары заскучали', body: 'В LYSTRA появилось много свежих жанров, пока тебя не было. Пора крутить барабан!', data: { type: 'absence_10_days' }});
+          } else if (daysInactive === 30) {
+            notifications.push({ to: user.push_token, sound: 'default', title: '😱 Месяц без новых открытий', body: 'Твоя музыкальная коллекция покрывается пылью. Возвращайся в игру, рулетка ждет!', data: { type: 'absence_30_days' }});
+          }
+        }
+      }
     }
 
     console.log(`Подготовлено ${notifications.length} пушей для отправки.`);
