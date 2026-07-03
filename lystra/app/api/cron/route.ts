@@ -11,6 +11,10 @@ export async function GET(request: Request) {
   console.log('Крон запущен. Проверяем авторизацию...');
   
   const authHeader = request.headers.get('authorization');
+  
+  console.log('Пришел заголовок:', authHeader);
+  console.log('Сервер видит пароль:', process.env.CRON_SECRET);
+  
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     console.error('Ошибка: Неверный или отсутствующий CRON_SECRET');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
