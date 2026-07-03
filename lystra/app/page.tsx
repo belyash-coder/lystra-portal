@@ -1,7 +1,7 @@
 import Link from "next/link";
 import StreamPlayer from "@/components/StreamPlayer";
 import { createClient } from "@/lib/supabase/server";
-import { Play } from "lucide-react";
+import { Play, ExternalLink } from "lucide-react";
 import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 import { LikeButton } from '@/components/LikeButton'
 import { ReviewComments } from '@/components/ReviewComments'
@@ -20,33 +20,8 @@ export default async function HomePage({
   const params = await searchParams;
   const genre = params?.genre;
 
-  // Достаем текущего юзера в самом начале, чтобы собрать его ленту
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // 0. Получаем посты артистов по подписке
-  let feedPosts: any[] = [];
-  if (user) {
-    const { data: follows } = await supabase
-      .from('follow')
-      .select('following_id')
-      .eq('follower_id', user.id);
-
-    const followingIds = follows?.map((f: any) => f.following_id) || [];
-
-    if (followingIds.length > 0) {
-      const { data: posts } = await supabase
-        .from('artist_posts')
-        .select(`*, artists(stage_name)`)
-        .in('artist_id', followingIds)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      feedPosts = posts || [];
-    }
-  }
-
   // 1. Мировые новинки из Deezer (с маппингом жанров)
-  let globalReleases = [];
+  let globalReleases: any[] = [];
   try {
     const deezerGenreMap: Record<string, number> = {
       "Electronic": 106,
@@ -66,7 +41,21 @@ export default async function HomePage({
     const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
     const deezerRes = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases`);
     const deezerData = await deezerRes.json();
-    globalReleases = deezerData.data?.slice(0, 8) || [];
+    const rawReleases = deezerData.data?.slice(0, 8) || [];
+
+    // Дозапрашиваем жанры для каждого альбома индивидуально
+    globalReleases = await Promise.all(
+      rawReleases.map(async (album: any) => {
+        try {
+          const detailRes = await fetch(`https://api.deezer.com/album/${album.id}`);
+          const detailData = await detailRes.json();
+          const fetchedGenre = detailData.genres?.data?.[0]?.name;
+          return { ...album, genre: fetchedGenre };
+        } catch (e) {
+          return album;
+        }
+      })
+    );
   } catch (error) {
     console.error("Ошибка загрузки Deezer:", error);
   }
@@ -144,12 +133,6 @@ export default async function HomePage({
           {/* Левая колонка: Сайдбар */}
           <div className="w-full md:w-[250px] lg:w-[280px] flex-shrink-0">
             <div className="sticky top-24 z-40 space-y-8">
-              <Link 
-                href="/add-indie" 
-                className="inline-flex items-center justify-center w-full bg-[#a78bfa] hover:bg-[#906ffa] text-black font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-[#a78bfa]/10"
-              >
-                + Добавить релиз
-              </Link>
               {/* Передаем basePath="/", чтобы фильтры работали для главной страницы */}
               <GenreSidebar currentGenre={genre} basePath="/" />
             </div>
@@ -172,11 +155,23 @@ export default async function HomePage({
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {globalReleases.map((album: any) => (
                       <Link href={`/album/${album.id}`} key={album.id} className="group cursor-pointer block">
-                        <div className="relative aspect-square overflow-hidden rounded-lg mb-3">
+                        <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
                           <img src={album.cover_medium} alt={album.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                            <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
+                              <Play className="w-6 h-6 ml-1" fill="currentColor" />
+                            </div>
+                          </div>
                         </div>
-                        <h3 className="font-semibold text-sm truncate">{album.title}</h3>
+                        <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] transition-colors">{album.title}</h3>
                         <p className="text-xs text-neutral-400 truncate">{album.artist.name}</p>
+                        {(album.genre || genre || "Новинка") && (
+                          <div className="mt-1.5">
+                            <span className="inline-block text-[10px] border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
+                              {album.genre || genre || "Новинка"}
+                            </span>
+                          </div>
+                        )}
                       </Link>
                     ))}
                   </div>
@@ -184,11 +179,21 @@ export default async function HomePage({
               }
               indieSceneContent={
                 <section>
-                  <div className="flex items-center justify-between mb-6">
-                    <p className="text-sm text-neutral-400">Пульс независимой сцены (Bandcamp & SoundCloud)</p>
-                    <Link href="/releases" className="text-sm text-neutral-400 hover:text-white transition-colors">
-                      Смотреть все →
-                    </Link>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <p className="text-sm text-neutral-400">
+                      Пульс независимой сцены <span className="hidden sm:inline">(Bandcamp & SoundCloud)</span>
+                    </p>
+                    <div className="flex items-center gap-4 justify-between sm:justify-end flex-shrink-0">
+                      <Link 
+                        href="/add-indie" 
+                        className="inline-flex items-center justify-center bg-[#a78bfa] hover:bg-[#906ffa] text-black font-bold py-2 px-4 rounded-xl text-xs transition-all shadow-lg shadow-[#a78bfa]/10"
+                      >
+                        + Добавить релиз
+                      </Link>
+                      <Link href="/releases" className="text-sm text-neutral-400 hover:text-white transition-colors whitespace-nowrap">
+                        Смотреть все →
+                      </Link>
+                    </div>
                   </div>
                   
                   {/* Новая квадратная сетка карточек */}
@@ -207,36 +212,83 @@ export default async function HomePage({
                       const isExternalLink = track.audio_path?.startsWith('http') || track.audio_path?.startsWith('bandcamp:');
 
                       if (isExternalLink) {
-                        const linkHref = track.audio_path?.startsWith('http') ? track.audio_path : '#';
-                        return (
-                          <a 
-                            key={track.id} 
-                            href={linkHref} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="group cursor-pointer block"
-                          >
-                            <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
-                              {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />}
-                            </div>
-                            <h3 className="font-semibold text-sm text-white truncate">{track.title}</h3>
-                            <p className="text-xs text-neutral-400 truncate">{artist?.stage_name || "Неизвестный артист"}</p>
-                          </a>
-                        );
-                      }
+                            const linkHref = track.audio_path?.startsWith('http') ? track.audio_path : '#';
+                            
+                            let platformName = "источнике";
+                            if (track.audio_path?.includes('soundcloud.com')) {
+                              platformName = "SoundCloud";
+                            } else if (track.audio_path?.includes('bandcamp.com') || track.audio_path?.startsWith('bandcamp:')) {
+                              platformName = "Bandcamp";
+                            }
+
+                            return (
+                              <div 
+                                key={track.id} 
+                                tabIndex={0}
+                                className="group block outline-none"
+                              >
+                                <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800 cursor-pointer">
+                                  {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-300" />}
+                                  
+                                  <a 
+                                    href={linkHref} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="absolute inset-0 bg-black/50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto transition-opacity duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
+                                  >
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#34d399]/90 flex items-center justify-center text-black shadow-lg flex-shrink-0">
+                                      <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6" />
+                                    </div>
+                                    <span className="text-white text-[10px] sm:text-xs font-medium text-center leading-tight px-1">
+                                      Слушать на<br/>
+                                      <span className="font-bold text-[#34d399]">{platformName}</span>
+                                    </span>
+                                  </a>
+                                </div>
+                                <a href={linkHref} target="_blank" rel="noopener noreferrer" className="block focus:outline-none">
+                                  <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#34d399] group-focus:text-[#34d399] transition-colors">{track.title}</h3>
+                                </a>
+                                <p className="text-xs text-neutral-400 truncate">{artist?.stage_name || "Неизвестный артист"}</p>
+                                {release?.genre && (
+                                  <div className="mt-1.5">
+                                    <span className="inline-block text-[10px] border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
+                                      {release.genre}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
 
                       return (
-                        <Link 
-                          href={`/release/${release?.id}`} 
+                        <div 
                           key={track.id} 
-                          className="group cursor-pointer block"
+                          tabIndex={0}
+                          className="group block outline-none"
                         >
-                          <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
-                            {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />}
+                          <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800 cursor-pointer">
+                            {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-300" />}
+                            <Link 
+                              href={`/release/${release?.id}`}
+                              className="absolute inset-0 bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]"
+                            >
+                              <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
+                                <Play className="w-6 h-6 ml-1" fill="currentColor" />
+                              </div>
+                            </Link>
                           </div>
-                          <h3 className="font-semibold text-sm text-white truncate">{track.title}</h3>
+                          <Link href={`/release/${release?.id}`} className="block focus:outline-none">
+                            <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] group-focus:text-[#a78bfa] transition-colors">{track.title}</h3>
+                          </Link>
                           <p className="text-xs text-neutral-400 truncate">{artist?.stage_name || "Неизвестный артист"}</p>
-                        </Link>
+                          {release?.genre && (
+                            <div className="mt-1.5">
+                              <span className="inline-block text-[10px] border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
+                                {release.genre}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -247,44 +299,6 @@ export default async function HomePage({
                 </section>
               }
             />
-
-            {/* Персональная лента подписок */}
-            {user && (
-              <section>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-[#a78bfa]">Лента подписок</h2>
-                </div>
-                <div className="space-y-4">
-                  {feedPosts.length > 0 ? (
-                    feedPosts.map((post: any) => (
-                      <div key={post.id} className="bg-neutral-900/50 p-6 rounded-2xl border border-neutral-800">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center flex-shrink-0 text-[#34d399] font-bold">
-                            {post.artists?.stage_name?.charAt(0).toUpperCase() || 'A'}
-                          </div>
-                          <div>
-                            <Link href={`/artist/${post.artist_id}`} className="font-bold text-white hover:text-[#34d399] transition-colors">
-                              {post.artists?.stage_name || 'Неизвестный артист'}
-                            </Link>
-                            <p className="text-xs text-neutral-500">
-                              {new Date(post.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                        {/* Если текст поста лежит не в content, замени на актуальное название колонки */}
-                        <p className="text-neutral-300 whitespace-pre-wrap text-sm leading-relaxed">
-                          {post.content}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 border border-dashed border-neutral-800 rounded-2xl bg-neutral-900/20">
-                      <p className="text-neutral-500 text-sm">Здесь будут появляться новости артистов, на которых вы подписаны.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
 
           </div>
         </div>

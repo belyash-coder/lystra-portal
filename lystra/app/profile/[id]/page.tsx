@@ -47,29 +47,38 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
   const { data: { user } } = await supabase.auth.getUser();
 
   const resolvedParams = await params;
-  const targetProfileId = resolvedParams.id;
+  const targetUsername = decodeURIComponent(resolvedParams.id); // Читаем никнейм из URL
 
+  // 1. Сначала находим профиль по никнейму
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', targetUsername)
+    .single();
+
+  const profile = profileData as Profile | null;
+
+  if (!profile) {
+    return <div className="p-12 text-center text-white">Профиль не найден</div>;
+  }
+
+  // 2. Берем его реальный системный ID для остальных запросов
+  const targetProfileId = profile.id;
   const isOwner = user?.id === targetProfileId;
 
-  // Параллельный запрос данных и счетчиков для целевого профиля
-  const [profileResult, reviewsResult, collectionsResult, followersResult, followingResult] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', targetProfileId).single(),
+  // 3. Параллельно запрашиваем остальные данные по реальному ID
+  const [reviewsResult, collectionsResult, followersResult, followingResult] = await Promise.all([
     supabase.from('reviews').select('*').eq('user_id', targetProfileId).order('created_at', { ascending: false }),
     supabase.from('collections').select('*').eq('user_id', targetProfileId).eq('item_type', 'album').order('created_at', { ascending: false }).limit(6),
     supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetProfileId),
     supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetProfileId)
   ]);
 
-  const profile = profileResult.data as Profile | null;
   const safeReviews = (reviewsResult.data || []) as Review[];
   const rawCollections = collectionsResult.data || [];
 
   const followersCount = followersResult.count || 0;
   const followingCount = followingResult.count || 0;
-
-  if (!profile) {
-    return <div className="p-12 text-center text-white">Профиль не найден</div>;
-  }
 
   let isFollowing = false;
   let initialMessages: any[] = [];

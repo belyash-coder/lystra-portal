@@ -12,7 +12,7 @@ export default async function GlobalReleasesPage({
   const params = await searchParams;
   const genre = params?.genre;
 
-  let releases = [];
+  let releases: any[] = [];
   try {
     const deezerGenreMap: Record<string, number> = {
       "Electronic": 106,
@@ -34,7 +34,21 @@ export default async function GlobalReleasesPage({
     
     const res = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases?limit=50`);
     const data = await res.json();
-    releases = data.data || [];
+    const rawReleases = data.data || [];
+
+    // Дозапрашиваем жанры для каждого альбома индивидуально
+    releases = await Promise.all(
+      rawReleases.map(async (album: any) => {
+        try {
+          const detailRes = await fetch(`https://api.deezer.com/album/${album.id}`);
+          const detailData = await detailRes.json();
+          const fetchedGenre = detailData.genres?.data?.[0]?.name;
+          return { ...album, genre: fetchedGenre };
+        } catch (e) {
+          return album;
+        }
+      })
+    );
   } catch (error) {
     console.error("Ошибка загрузки Deezer:", error);
   }

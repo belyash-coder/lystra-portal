@@ -3,9 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const AVAILABLE_GENRES = ['Electronic', 'Ambient', 'Synthwave', 'Lo-Fi', 'Rock', 'Hip-Hop', 'Jazz'];
+const AVAILABLE_GENRES = [
+  'Electronic', 'Rock', 'Hip-Hop', 'Pop', 'R&B', 
+  'Jazz', 'Classical', 'Alternative', 'Metal', 
+  'Indie', 'Ambient', 'Folk'
+];
 
-export function AddReleaseForm() {
+export default function AddReleaseForm() {
   const [url, setUrl] = useState('');
   const [genre, setGenre] = useState(AVAILABLE_GENRES[0]);
   const [loading, setLoading] = useState(false);

@@ -179,7 +179,7 @@ export function NotificationBell() {
                 const linkHref = isMessage 
                   ? '#' 
                   : notif.type === 'follow' 
-                    ? `/profile/${notif.related_id}` 
+                    ? `/profile/${notif.notifier_username}` 
                     : `/?review_id=${notif.related_id}`;
 
                 return (

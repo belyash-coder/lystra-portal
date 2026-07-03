@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Dices } from 'lucide-react';
+import { createClient } from '@/utils/supabase/client';
 
 export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
+  const supabase = createClient();
 
   useEffect(() => {
     setMounted(true);
@@ -18,6 +21,44 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+        
+      setUnreadCount(count || 0);
+    };
+
+    fetchCount();
+
+    let channel: any;
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel(`mobile-menu-badge-${user.id}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+          () => fetchCount() // Обновляем счетчик при любом изменении (в т.ч. когда они прочитаны)
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (isOpen) {
@@ -30,27 +71,24 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
 
   const menuContent = (
     <div
-      className={`fixed inset-0 top-16 z-[9999] bg-[#0a0a0a] flex flex-col p-6 border-t border-neutral-900 transition-transform duration-200 ease-out ${
+      className={`fixed inset-0 top-16 z-[9999] bg-[#0a0a0a] flex flex-col p-6 border-t border-neutral-900 transition-transform duration-200 ease-out overflow-y-auto custom-scrollbar pb-24 ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
     >
       <nav className="flex flex-col gap-6 text-lg font-medium mt-4">
-        <Link href="/" className="text-neutral-300 hover:text-white transition-colors">Лента</Link>
-        <Link href="/search" className="text-neutral-300 hover:text-[#a78bfa] transition-colors">Поиск</Link>
-        <Link href="/releases" className="text-neutral-300 hover:text-[#34d399] transition-colors">Инди-радар</Link>
+        <Link href="/" className="text-neutral-300 hover:text-white active:opacity-60 transition-all">Главная</Link>
+        <Link href="/search" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Поиск</Link>
+        <Link href="/following" className="text-neutral-300 hover:text-[#34d399] active:opacity-60 transition-all">Подписки</Link>
+        <Link href="/reviews" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Отзывы и рецензии</Link>
         
-        <Link href="/discover" className="flex items-center justify-center gap-2 text-[#121212] font-bold bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-4 py-3 rounded-xl hover:scale-[1.02] transition-transform shadow-[0_0_15px_rgba(52,211,153,0.2)]">
+        <Link href="/discover" className="flex items-center justify-center gap-2 text-[#121212] font-bold bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-4 py-3 rounded-xl hover:scale-[1.02] active:scale-95 transition-transform shadow-[0_0_15px_rgba(52,211,153,0.2)]">
           <Dices className="w-5 h-5" /> Random Genre
-        </Link>
-
-        <Link href="/studio" className="bg-[#a78bfa]/10 text-[#a78bfa] border border-[#a78bfa]/20 px-4 py-3 rounded-xl text-center hover:bg-[#a78bfa]/20 transition-colors w-full">
-          Студия
         </Link>
       </nav>
 
-      <hr className="border-neutral-900 my-8" />
+      <hr className="border-neutral-900 my-6" />
 
-      <div className="flex justify-center">
+      <div className="flex flex-col w-full">
          {authNode}
       </div>
     </div>
@@ -70,6 +108,11 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
         style={{ WebkitTapHighlightColor: 'transparent' }}
         aria-label="Открыть меню"
       >
+        {!isOpen && unreadCount > 0 && (
+          <span className="absolute top-2 right-2 min-w-[18px] h-[18px] bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black font-mono px-1 shadow-md pointer-events-none z-10 animate-in zoom-in duration-200">
+            {unreadCount}
+          </span>
+        )}
         {isOpen ? (
           <svg className="w-7 h-7 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

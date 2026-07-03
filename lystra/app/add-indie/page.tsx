@@ -1,4 +1,4 @@
-import { AddReleaseForm } from "@/components/AddReleaseForm";
+import AddReleaseForm from "../../components/AddReleaseForm";
 import Link from "next/link";
 
 export default function AddIndiePage() {

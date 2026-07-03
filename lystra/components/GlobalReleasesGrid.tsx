@@ -44,6 +44,13 @@ export default function GlobalReleasesGrid({ initialReleases }: { initialRelease
             >
               {album.artist.name}
             </p>
+            {(album.genre || "Новинка") && (
+              <div className="mt-2">
+                <span className="inline-block text-[10px] border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
+                  {album.genre || "Новинка"}
+                </span>
+              </div>
+            )}
           </Link>
         ))}
         
