@@ -38,18 +38,15 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
 
-          // Добавили .select(), чтобы база вернула ответ, и мы его проверили
           const { data, error } = await supabase.from('track_plays').insert({
-            track_id: trackId,
+            track_id: String(trackId),
             listener_id: user?.id || null
           }).select();
 
           if (error) {
             console.error("Плеер: ОШИБКА БАЗЫ!", error.message);
-            alert("❌ Ошибка записи в базу: " + error.message);
           } else {
             console.log("Плеер: УСПЕХ!", data);
-            alert("✅ Засчитано 1 прослушивание! Нажми ОК, затем обнови страницу (F5), чтобы увидеть в Аналитике.");
             hasTrackedRef.current = true; 
           }
         } catch (error) {
