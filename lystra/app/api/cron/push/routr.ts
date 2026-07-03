@@ -46,11 +46,17 @@ export async function GET(request: Request) {
         console.error(`Invalid timezone for user ${user.id}: ${user.timezone}`);
       }
 
-      if (localHour === 12) {
+      // if (localHour === 12) {
+      //   notifications.push({
+      //     to: user.push_token,
+      //     sound: 'default',
+      //     title: '🌟 Жанр дня готов!',
+      // ВРЕМЕННО ДЛЯ ТЕСТА: отправляем пуш в любое время
+      if (true) {
         notifications.push({
           to: user.push_token,
           sound: 'default',
-          title: '🌟 Жанр дня готов!',
+          title: '🧪 ТЕСТ: Жанр дня готов!',
           body: `Сегодня слушаем ${genreOfTheDay}. Заходи за новой музыкой!`,
           data: { type: 'genre_of_the_day' },
         });
