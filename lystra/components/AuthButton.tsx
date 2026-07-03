@@ -7,6 +7,7 @@ import LoginLink from '@/components/LoginLink';
 import { signOut } from '@/app/login/actions';
 import { Bell, Heart, MessageSquare, UserPlus, Mail } from 'lucide-react';
 import { useChat } from '@/components/ChatProvider';
+import { usePathname } from 'next/navigation';
 
 interface Notification {
   id: string;
@@ -28,6 +29,7 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { activeChat, openChat } = useChat();
   const activeChatRef = useRef(activeChat);
+  const pathname = usePathname();
 
   useEffect(() => {
     activeChatRef.current = activeChat;
@@ -103,6 +105,22 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
       if (channel) supabase.removeChannel(channel);
     };
   }, [supabase]);
+
+  // Синхронизируем стейт клиента с реальными куками при каждом переходе
+  useEffect(() => {
+    if (loading) return;
+
+    const checkAuthSync = async () => {
+      const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
+      
+      // Если реальный юзер в базе не совпадает с тем, что завис в памяти компонента — перезагружаем
+      if (currentAuthUser?.id !== user?.id) {
+        window.location.reload();
+      }
+    };
+
+    checkAuthSync();
+  }, [pathname, loading, user?.id, supabase]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
