@@ -43,7 +43,7 @@ export default function IndieReleasesGrid({ initialTracks }: { initialTracks: an
                       href={linkHref} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
+                      className="absolute inset-0 bg-black/50 opacity-0 invisible group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
                     >
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#34d399]/90 flex items-center justify-center text-black shadow-lg flex-shrink-0">
                         <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -75,7 +75,7 @@ export default function IndieReleasesGrid({ initialTracks }: { initialTracks: an
                   {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-500" />}
                   <Link 
                     href={`/release/${release?.id}`}
-                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]"
+                    className="absolute inset-0 bg-black/40 opacity-0 invisible group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]"
                   >
                     <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
                       <Play className="w-6 h-6 ml-1" fill="currentColor" />
