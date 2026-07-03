@@ -23,7 +23,7 @@ export async function login(formData: FormData) {
     redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
-  revalidatePath('/')
+  revalidatePath('/', 'layout')
   redirect(nextUrl)
 }
 
@@ -46,7 +46,7 @@ export async function signup(formData: FormData) {
     redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
-  revalidatePath('/')
+  revalidatePath('/', 'layout')
   redirect(nextUrl)
 }
 
