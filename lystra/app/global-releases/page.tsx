@@ -1,12 +1,38 @@
 import Link from "next/link";
+import GenreSidebar from "@/components/GenreSidebar";
+import GlobalReleasesGrid from "@/components/GlobalReleasesGrid";
 
-export const revalidate = 3600; // Кешируем страницу на час, чтобы не спамить API Deezer
+export const revalidate = 0; 
 
-export default async function GlobalReleasesPage() {
+export default async function GlobalReleasesPage({
+  searchParams,
+}: {
+  searchParams: { genre?: string };
+}) {
+  const params = await searchParams;
+  const genre = params?.genre;
+
   let releases = [];
   try {
-    // Запрашиваем новинки. По умолчанию Deezer отдаст больше данных (около 50 релизов)
-    const res = await fetch("https://api.deezer.com/editorial/0/releases?limit=50");
+    const deezerGenreMap: Record<string, number> = {
+      "Electronic": 106,
+      "Rock": 152,
+      "Hip-Hop": 116,
+      "Pop": 132,
+      "R&B": 165,
+      "Jazz": 129,
+      "Classical": 98,
+      "Alternative": 85,
+      "Metal": 464,
+      "Indie": 85, 
+      "Ambient": 106, 
+      "Folk": 466
+    };
+    
+    // Если жанр выбран — используем его ID, иначе 0 (все жанры)
+    const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
+    
+    const res = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases?limit=50`);
     const data = await res.json();
     releases = data.data || [];
   } catch (error) {
@@ -14,53 +40,30 @@ export default async function GlobalReleasesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#121212] text-white p-6 md:p-12 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <main className="min-h-screen bg-[#121212] text-white py-8 md:py-12 font-sans">
+      <div className="max-w-[1600px] mx-auto px-6 md:px-12 flex flex-col md:flex-row gap-8 lg:gap-20 xl:gap-24">
         
-        {/* Навигация и заголовок */}
-        <div className="flex flex-col gap-2">
-          <Link href="/" className="text-neutral-400 hover:text-white transition-colors text-sm w-fit mb-4">
-            ← Назад на главную
-          </Link>
-          <h1 className="text-4xl font-black">
-            Все <span className="text-[#a78bfa]">мировые новинки</span>
-          </h1>
+        {/* Левая колонка: Сайдбар (с отступом для выравнивания по линии карточек) */}
+        <div className="w-full md:w-[250px] lg:w-[280px] flex-shrink-0 md:pt-[104px]">
+          <div className="sticky top-24 z-40 space-y-8">
+            <GenreSidebar currentGenre={genre} basePath="/global-releases" />
+          </div>
         </div>
 
-        {/* Сетка релизов */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {releases.map((album: any) => (
-            <Link 
-              href={`/album/${album.id}`} 
-              key={album.id} 
-              className="group cursor-pointer block"
-            >
-              <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-900">
-                <img 
-                  src={album.cover_medium} 
-                  alt={album.title} 
-                  className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <h3 
-                className="font-semibold text-sm truncate group-hover:text-[#34d399] transition-colors" 
-                title={album.title}
-              >
-                {album.title}
-              </h3>
-              <p 
-                className="text-xs text-neutral-400 truncate mt-1" 
-                title={album.artist.name}
-              >
-                {album.artist.name}
-              </p>
-            </Link>
-          ))}
+        {/* Правая колонка: Заголовок и Сетка релизов */}
+        <div className="flex-grow min-w-0">
           
-          {releases.length === 0 && (
-            <p className="text-neutral-500 col-span-full">Не удалось загрузить релизы.</p>
-          )}
-        </div>
+          <div className="flex flex-col gap-2 mb-8">
+            <Link href="/" className="text-neutral-400 hover:text-white transition-colors text-sm w-fit mb-4">
+              ← Назад на главную
+            </Link>
+            <h1 className="text-4xl font-black">
+              Все <span className="text-[#a78bfa]">мировые новинки</span>
+            </h1>
+          </div>
+
+          <GlobalReleasesGrid initialReleases={releases} />
+      </div>
       </div>
     </main>
   );

@@ -88,9 +88,6 @@ export default async function StudioDashboard({ searchParams }: { searchParams: 
             <p className="text-[#a78bfa] font-bold tracking-wider uppercase text-sm mb-2">LYSTRA Studio</p>
             <h1 className="text-4xl font-black">{artist.stage_name}</h1>
           </div>
-          <Link href="/studio/releases/new" className="flex items-center gap-2 bg-[#34d399] text-[#121212] font-bold py-3 px-6 rounded-xl hover:scale-105 transition-transform shadow-[0_0_20px_rgba(52,211,153,0.2)]">
-            <Plus className="w-5 h-5" /> Создать релиз
-          </Link>
         </div>
 
         {/* Навигация по вкладкам */}
@@ -147,24 +144,14 @@ export default async function StudioDashboard({ searchParams }: { searchParams: 
                         <DeleteReleaseButton releaseId={release.id} title={release.title} />
                       </div>
                       
-                      <div className="space-y-3 border-t border-neutral-800 pt-4">
-                        {release.tracks?.sort((a: any, b: any) => a.track_number - b.track_number).map((track: any) => {
-                          const audioUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/audio_files/${track.audio_path}`;
-                          return (
-                            <div key={track.id} className="bg-neutral-900/40 p-3 rounded-xl border border-neutral-800/50 flex flex-col gap-2">
-                              <div className="flex justify-between items-center text-sm text-neutral-300">
-                                <span className="truncate text-neutral-400 font-mono pr-2">
-                                  {track.track_number}. <span className="text-white font-sans">{track.title}</span>
-                                </span>
-                                <span className="text-neutral-500 font-mono flex-shrink-0">
-                                  {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
-                                </span>
-                              </div>
-                              {/* ПЛЕЕР С ПРАВИЛЬНЫМ TRACK ID */}
-                              <CustomAudioPlayer src={audioUrl || ""} initialDuration={track?.duration || 0} trackId={track.id} />
-                            </div>
-                          );
-                        })}
+                      <div className="space-y-3 border-t border-neutral-800 pt-4 mt-4">
+                        <div className="bg-neutral-900/40 p-5 rounded-xl border border-[#a78bfa]/20 flex flex-col items-center justify-center text-center gap-2">
+                          <Headphones className="w-6 h-6 text-[#a78bfa]" />
+                          <div>
+                            <p className="text-sm text-white font-bold mb-1">Прямая загрузка отключена</p>
+                            <p className="text-xs text-neutral-400">Готовим инфраструктуру для синхронизации с Bandcamp и SoundCloud.</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

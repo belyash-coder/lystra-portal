@@ -1,6 +1,8 @@
 import { createClient } from '@/utils/supabase/server';
 import Link from 'next/link';
 import Image from 'next/image';
+import LoginLink from '@/components/LoginLink';
+import { signOut } from '@/app/login/actions';
 
 export default async function AuthButton() {
   const supabase = await createClient();
@@ -8,14 +10,7 @@ export default async function AuthButton() {
 
   // Если пользователь НЕ авторизован — показываем кнопку "Войти"
   if (!user) {
-    return (
-      <Link 
-        href="/login" 
-        className="text-sm font-bold bg-white text-[#121212] px-4 py-1.5 rounded-lg hover:bg-neutral-200 transition-colors"
-      >
-        Войти
-      </Link>
-    );
+    return <LoginLink />;
   }
 
   // Если авторизован — тянем его профиль
@@ -53,8 +48,8 @@ export default async function AuthButton() {
         </span>
       </Link>
 
-      {/* Простая кнопка выхода (опционально, если у тебя настроен роут для выхода) */}
-      <form action="/auth/signout" method="post">
+      {/* Выход через серверный экшен */}
+      <form action={signOut}>
         <button className="text-xs text-neutral-500 hover:text-red-400 transition-colors">
           Выйти
         </button>

@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="ru" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <Script 
           src="https://telegram.org/js/telegram-web-app.js" 
@@ -33,7 +33,7 @@ export default function RootLayout({
           
           {/* ГЛОБАЛЬНАЯ ШАПКА НАВИГАЦИИ */}
           <header className="w-full bg-[#121212]/90 backdrop-blur-md border-b border-neutral-800 sticky top-0 z-50">
-            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+            <div className="max-w-[1600px] mx-auto px-6 md:px-12 h-16 flex items-center justify-between gap-4">
               
               <div className="flex-shrink-0 z-50">
                 <Link href="/" className="text-2xl font-black tracking-wider text-white hover:opacity-90 relative z-50 w-max">
@@ -49,10 +49,6 @@ export default function RootLayout({
                   
                  <Link href="/discover" className="text-sm font-bold flex items-center gap-1.5 text-[#121212] bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-3 py-1.5 rounded-lg hover:scale-105 transition-transform shadow-[0_0_10px_rgba(52,211,153,0.3)]">
                     <Dices className="w-4 h-4" /> Random Genre
-                  </Link>
-
-                  <Link href="/studio" className="text-sm font-bold bg-[#a78bfa]/10 text-[#a78bfa] border border-[#a78bfa]/20 px-4 py-1.5 rounded-lg hover:bg-[#a78bfa]/20 transition-colors">
-                    Студия
                   </Link>
                 </nav>
 

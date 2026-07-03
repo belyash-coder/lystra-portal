@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
   let errorMessage = ''
+  const nextUrl = (formData.get('next') as string) || '/'
   
   try {
     const supabase = await createClient()
@@ -15,21 +16,20 @@ export async function login(formData: FormData) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) errorMessage = error.message
   } catch (err: any) {
-    // Если падает сам сервер (например, неверные ключи или версия Next.js)
     errorMessage = err.message || "Неизвестная ошибка сервера"
   }
 
-  // Делаем редирект ВНЕ блока try-catch, чтобы не сломать Next.js
   if (errorMessage) {
-    redirect(`/login?message=${encodeURIComponent(errorMessage)}`)
+    redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
   revalidatePath('/')
-  redirect('/')
+  redirect(nextUrl)
 }
 
 export async function signup(formData: FormData) {
   let errorMessage = ''
+  const nextUrl = (formData.get('next') as string) || '/'
   
   try {
     const supabase = await createClient()
@@ -43,16 +43,17 @@ export async function signup(formData: FormData) {
   }
 
   if (errorMessage) {
-    redirect(`/login?message=${encodeURIComponent(errorMessage)}`)
+    redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
   revalidatePath('/')
-  redirect('/')
+  redirect(nextUrl)
 }
 
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  revalidatePath('/')
-  redirect('/login')
+  
+  // Обновляем весь кэш приложения (layout), чтобы шапка сразу "забыла" пользователя
+  revalidatePath('/', 'layout') 
 }

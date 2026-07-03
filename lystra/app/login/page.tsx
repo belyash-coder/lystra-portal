@@ -1,10 +1,11 @@
 import { login, signup } from './actions'
 
 export default async function LoginPage(props: {
-  searchParams: Promise<{ message?: string }>
+  searchParams: Promise<{ message?: string; next?: string }>
 }) {
   // В новых версиях Next.js searchParams нужно "дождаться" через await
   const searchParams = await props.searchParams
+  const nextUrl = searchParams?.next || '/'
 
   return (
     <div className="min-h-screen bg-[#121212] flex flex-col justify-center items-center p-4">
@@ -15,6 +16,9 @@ export default async function LoginPage(props: {
         
         {/* ДОБАВЛЕНО: Базовый action={login} для самой формы */}
         <form action={login} className="flex flex-col gap-4">
+          {/* Скрытое поле для передачи параметра next в actions.ts */}
+          <input type="hidden" name="next" value={nextUrl} />
+
           <div className="flex flex-col gap-2">
             <label className="text-sm text-gray-400" htmlFor="email">
               Email
