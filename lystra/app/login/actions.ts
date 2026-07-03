@@ -6,7 +6,8 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
   let errorMessage = ''
-  const nextUrl = (formData.get('next') as string) || '/'
+  // Жесткий редирект на главную, чтобы избежать 404 ошибок несуществующих страниц
+  const nextUrl = '/' 
   
   try {
     const supabase = await createClient()
@@ -14,9 +15,10 @@ export async function login(formData: FormData) {
     const password = formData.get('password') as string
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) errorMessage = error.message
+    if (error) errorMessage = error.message || JSON.stringify(error)
   } catch (err: any) {
-    errorMessage = err.message || "Неизвестная ошибка сервера"
+    errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || "Неизвестная ошибка сервера"
+    if (errorMessage === '{}') errorMessage = "Скрытая ошибка БД"
   }
 
   if (errorMessage) {
@@ -29,7 +31,7 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   let errorMessage = ''
-  const nextUrl = (formData.get('next') as string) || '/'
+  const nextUrl = '/' 
   
   try {
     const supabase = await createClient()
@@ -37,17 +39,18 @@ export async function signup(formData: FormData) {
     const password = formData.get('password') as string
 
     const { error } = await supabase.auth.signUp({ email, password })
-    if (error) errorMessage = error.message
+    if (error) errorMessage = error.message || JSON.stringify(error)
   } catch (err: any) {
-    errorMessage = err.message || "Неизвестная ошибка сервера"
+    errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || "Неизвестная ошибка сервера"
+    if (errorMessage === '{}') errorMessage = "Ошибка: проверьте SQL-триггер на создание профиля"
   }
 
   if (errorMessage) {
     redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
-  revalidatePath('/', 'layout')
-  redirect(nextUrl)
+  // Успешно — кидаем обратно на страницу входа с параметром success
+  redirect(`/login?success=${encodeURIComponent('Письмо с ссылкой для подтверждения отправлено на вашу почту. Пожалуйста, проверьте также папку "Спам".')}&next=${encodeURIComponent(nextUrl)}`)
 }
 
 export async function signOut() {

@@ -1,7 +1,7 @@
 import { login, signup } from './actions'
 
 export default async function LoginPage(props: {
-  searchParams: Promise<{ message?: string; next?: string }>
+  searchParams: Promise<{ message?: string; success?: string; next?: string }>
 }) {
   // В новых версиях Next.js searchParams нужно "дождаться" через await
   const searchParams = await props.searchParams
@@ -51,6 +51,12 @@ export default async function LoginPage(props: {
             <p className="text-red-400 text-sm text-center mt-2">
               {searchParams.message}
             </p>
+          )}
+          
+          {searchParams?.success && (
+            <div className="bg-[#34d399]/10 border border-[#34d399]/30 text-[#34d399] p-4 rounded-xl text-sm text-center mt-2 font-medium">
+              {searchParams.success}
+            </div>
           )}
 
           <div className="flex flex-col gap-3 mt-4">
