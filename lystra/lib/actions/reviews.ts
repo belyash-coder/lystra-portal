@@ -69,3 +69,48 @@ export async function deleteReview(reviewId: string) {
   revalidatePath('/profile')
   return { success: true }
 }
+
+export async function toggleReviewLike(reviewId: string, albumId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Необходимо авторизоваться' }
+
+  const { data: existingLike } = await supabase
+    .from('review_likes')
+    .select('*')
+    .match({ user_id: user.id, review_id: reviewId })
+    .maybeSingle()
+
+  if (existingLike) {
+    await supabase.from('review_likes').delete().match({ user_id: user.id, review_id: reviewId })
+  } else {
+    await supabase.from('review_likes').insert({ user_id: user.id, review_id: reviewId })
+  }
+
+  revalidatePath(`/album/${albumId}`)
+  return { success: true }
+}
+
+export async function submitComment(reviewId: string, content: string, albumId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Необходимо авторизоваться' }
+  if (!content.trim()) return { error: 'Комментарий не может быть пустым' }
+
+  const { error } = await supabase
+    .from('review_comments')
+    .insert({
+      user_id: user.id,
+      review_id: reviewId,
+      content: content.trim()
+    })
+
+  if (error) {
+    return { error: 'Ошибка при добавлении комментария: ' + error.message }
+  }
+
+  revalidatePath(`/album/${albumId}`)
+  return { success: true }
+}

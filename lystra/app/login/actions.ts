@@ -6,13 +6,25 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
   let errorMessage = ''
-  // Жесткий редирект на главную, чтобы избежать 404 ошибок несуществующих страниц
   const nextUrl = '/' 
   
   try {
     const supabase = await createClient()
-    const email = formData.get('email') as string
+    const loginInput = formData.get('login') as string
     const password = formData.get('password') as string
+
+    let email = loginInput
+
+    // Если в строке нет '@', считаем, что это юзернейм, и запрашиваем email через нашу SQL-функцию
+    if (!loginInput.includes('@')) {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_email_by_username', { p_username: loginInput })
+      
+      if (rpcError || !data) {
+        throw new Error('Пользователь с таким юзернеймом не найден')
+      }
+      email = data
+    }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) errorMessage = error.message || JSON.stringify(error)
@@ -22,7 +34,7 @@ export async function login(formData: FormData) {
   }
 
   if (errorMessage) {
-    redirect(`/login?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
+    redirect(`/signup?message=${encodeURIComponent(errorMessage)}&next=${encodeURIComponent(nextUrl)}`)
   }
 
   revalidatePath('/', 'layout')
@@ -35,11 +47,23 @@ export async function signup(formData: FormData) {
   
   try {
     const supabase = await createClient()
+    const username = formData.get('username') as string
     const email = formData.get('email') as string
     const password = formData.get('password') as string
+    const confirmPassword = formData.get('confirmPassword') as string
 
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) errorMessage = error.message || JSON.stringify(error)
+    if (password !== confirmPassword) {
+      errorMessage = 'Пароли не совпадают'
+    } else {
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: { username }
+        }
+      })
+      if (error) errorMessage = error.message || JSON.stringify(error)
+    }
   } catch (err: any) {
     errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || "Неизвестная ошибка сервера"
     if (errorMessage === '{}') errorMessage = "Ошибка: проверьте SQL-триггер на создание профиля"
