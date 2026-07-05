@@ -5,9 +5,10 @@ import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import LoginLink from '@/components/LoginLink';
 import { signOut } from '@/app/login/actions';
-import { Bell, Heart, MessageSquare, UserPlus, Mail } from 'lucide-react';
+import { Bell, Heart, MessageSquare, UserPlus, Mail, User } from 'lucide-react';
 import { useChat } from '@/components/ChatProvider';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 
 interface Notification {
   id: string;
@@ -22,6 +23,7 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
   const supabase = createClient();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [userStats, setUserStats] = useState<any>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,14 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
         .eq('id', authUser.id)
         .single();
       setProfile(prof);
+
+      // Загружаем статистику для рамок по правильному полю user_id
+      const { data: stats } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+      setUserStats(stats);
 
       const { data: notifs } = await supabase
         .from('notifications')
@@ -106,14 +116,11 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
     };
   }, [supabase]);
 
-  // Синхронизируем стейт клиента с реальными куками при каждом переходе
   useEffect(() => {
     if (loading) return;
 
     const checkAuthSync = async () => {
       const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
-      
-      // Если реальный юзер в базе не совпадает с тем, что завис в памяти компонента — перезагружаем
       if (currentAuthUser?.id !== user?.id) {
         window.location.reload();
       }
@@ -164,6 +171,18 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
     }
   };
 
+  // Вычисляем баллы и рамки
+  const points = (userStats?.releases_count || 0) + (userStats?.reviews_count || 0) + (userStats?.comments_count || 0);
+  
+  let frameClass = "border-2 border-transparent group-hover:border-[#a78bfa]/50"; 
+  if (points >= 300) {
+    frameClass = "p-0.5 bg-gradient-to-tr from-[#a78bfa] via-[#34d399] to-[#a78bfa] shadow-[0_0_0_2px_#121212,0_0_0_4px_#a78bfa]";
+  } else if (points >= 100) {
+    frameClass = "border-[2px] border-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.3)] group-hover:shadow-[0_0_12px_rgba(52,211,153,0.5)]";
+  } else if (points >= 28) {
+    frameClass = "border-2 border-[#a78bfa] ring-1 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]";
+  }
+
   if (loading) {
     return <div className="w-8 h-8 rounded-full bg-neutral-800 animate-pulse" />;
   }
@@ -176,18 +195,19 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
     <div className={`relative ${isMobile ? 'w-full flex flex-col gap-2' : ''}`} ref={dropdownRef}>
       {isMobile ? (
         <div className="flex items-center gap-3 px-2 mb-2">
-          <div className="w-10 h-10 relative rounded-full border border-neutral-700">
-            {profile?.avatar_url ? (
-              <img 
-                src={`${profile.avatar_url}?t=${new Date(profile.username || '').getTime()}`}
-                alt="Аватар" 
-                className="object-cover w-full h-full rounded-full"
-              />
-            ) : (
-              <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-sm text-[#34d399] font-bold rounded-full">
-                {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </div>
+          <div className={`w-10 h-10 relative rounded-full flex-shrink-0 transition-all z-10 ${frameClass}`}>
+            {points >= 300 && (
+              <div className="absolute -inset-1 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-sm opacity-50 animate-pulse -z-10"></div>
             )}
+            <div className="w-full h-full relative rounded-full overflow-hidden bg-neutral-800">
+              {profile?.avatar_url ? (
+                <Image src={profile.avatar_url} alt="avatar" fill className="object-cover" unoptimized />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-[#34d399] font-bold">
+                  {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              )}
+            </div>
           </div>
           <span className="text-lg font-bold text-white">
             {profile?.username || 'Профиль'}
@@ -201,21 +221,24 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
           }}
           className="flex items-center gap-2 group cursor-pointer select-none active:scale-95 transition-transform outline-none"
         >
-        <div className="w-8 h-8 relative rounded-full border border-neutral-700 group-hover:border-[#a78bfa] transition-all">
-          {profile?.avatar_url ? (
-            <img 
-              src={`${profile.avatar_url}?t=${new Date(profile.username || '').getTime()}`}
-              alt="Аватар" 
-              className="object-cover w-full h-full rounded-full"
-            />
-          ) : (
-            <div className="w-full h-full bg-neutral-800 flex items-center justify-center text-xs text-[#34d399] font-bold rounded-full">
-              {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
+        <div className="relative">
+          <div className={`w-8 h-8 relative rounded-full flex-shrink-0 transition-all z-10 ${frameClass}`}>
+            {points >= 300 && (
+              <div className="absolute -inset-1 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-sm opacity-50 animate-pulse -z-10"></div>
+            )}
+            <div className="w-full h-full relative rounded-full overflow-hidden bg-neutral-800">
+              {profile?.avatar_url ? (
+                <Image src={profile.avatar_url} alt="avatar" fill className="object-cover" unoptimized />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-[#34d399] font-bold">
+                  {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              )}
             </div>
-          )}
+          </div>
           
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white rounded-full flex items-center justify-center text-[9px] font-black font-mono px-1 shadow-md">
+            <span className="absolute -top-1 -right-1 z-20 min-w-[16px] h-4 bg-rose-500 text-white rounded-full flex items-center justify-center text-[9px] font-black font-mono px-1 shadow-md">
               {unreadCount}
             </span>
           )}
@@ -228,14 +251,29 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
 
       {(isOpen || isMobile) && (
         <div className={isMobile ? "w-full flex flex-col" : "absolute right-0 mt-3 w-80 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"}>
-          <div className={`p-3 ${isMobile ? '' : 'border-b border-neutral-800 bg-[#121212]'}`}>
+          <div className={`p-3 ${isMobile ? '' : 'border-b border-neutral-800 bg-[#121212]'} flex flex-col gap-1.5`}>
             <Link 
               href="/profile" 
               onClick={() => !isMobile && setIsOpen(false)}
+              className="flex items-center gap-3 p-3 rounded-xl text-sm font-bold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all border border-neutral-800/50 hover:border-[#a78bfa]/30"
+            >
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 text-[#a78bfa]">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col flex-1">
+                <span>Профиль</span>
+                <span className="text-neutral-500 text-xs font-medium">Ваши данные и статистика</span>
+              </div>
+              <span className="text-neutral-500 text-xs">→</span>
+            </Link>
+            
+            <Link 
+              href="/following" 
+              onClick={() => !isMobile && setIsOpen(false)}
               className="flex items-center justify-between p-2 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-white/[0.04] transition-all"
             >
-              <span>Профиль</span>
-              <span className="text-neutral-500 text-xs">→</span>
+              <span>Мои подписки</span>
+              <UserPlus className="w-4 h-4 text-neutral-500" />
             </Link>
           </div>
 

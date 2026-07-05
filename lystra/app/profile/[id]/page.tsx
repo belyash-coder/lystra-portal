@@ -21,6 +21,7 @@ interface Profile {
   bio: string | null;
   favorite_genres: string[] | null;
   active_title_id: string | null;
+  role: 'user' | 'moderator' | 'admin';
 }
 
 interface Review {
@@ -66,6 +67,19 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
   // 2. Берем его реальный системный ID для остальных запросов
   const targetProfileId = profile.id;
   const isOwner = user?.id === targetProfileId;
+
+  // Получаем роль текущего авторизованного пользователя для проверки прав модератора
+  let currentUserRole: 'user' | 'moderator' | 'admin' = 'user';
+  if (user) {
+    const { data: currProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (currProfile?.role) {
+      currentUserRole = currProfile.role as 'user' | 'moderator' | 'admin';
+    }
+  }
 
   // 3. Параллельно запрашиваем остальные данные по реальному ID
   const [reviewsResult, collectionsResult, followersResult, followingResult] = await Promise.all([
@@ -184,7 +198,15 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
             <div>
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 md:gap-4">
                 <div className="flex flex-col items-start gap-1.5">
-                  <h1 className="text-2xl md:text-3xl font-bold break-all">@{profile?.username || 'user'}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl md:text-3xl font-bold break-all">@{profile?.username || 'user'}</h1>
+                    {profile?.role === 'admin' && (
+                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-500 border border-rose-500/30 text-[10px] rounded-md font-bold uppercase tracking-wider shadow-[0_0_8px_rgba(244,63,94,0.2)]">Admin</span>
+                    )}
+                    {profile?.role === 'moderator' && (
+                      <span className="px-2 py-0.5 bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] rounded-md font-bold uppercase tracking-wider shadow-[0_0_8px_rgba(56,189,248,0.2)]">Moder</span>
+                    )}
+                  </div>
                   {activeTitle && (
                     <div className="group relative inline-block cursor-help">
                       <span className="px-3 py-0.5 bg-[#34d399] text-[#121212] text-xs rounded-full font-bold inline-block shadow-[0_0_10px_rgba(52,211,153,0.2)]">
@@ -414,7 +436,7 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-start">
               {safeReviews.slice(0, 3).map((review) => (
-                <ProfileReviewCard key={review.id} review={review} isOwner={isOwner} />
+                <ProfileReviewCard key={review.id} review={review} isOwner={isOwner} currentUserRole={currentUserRole} />
               ))}
               
               {safeReviews.length > 3 && (

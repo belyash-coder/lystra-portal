@@ -55,10 +55,23 @@ export async function deleteReview(reviewId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Необходимо авторизоваться' }
 
-  const { error } = await supabase
-    .from('reviews')
-    .delete()
-    .match({ id: reviewId, user_id: user.id }) // Удаляем только если отзыв принадлежит текущему юзеру
+  // Проверяем роль пользователя
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isAdminOrMod = profile?.role === 'admin' || profile?.role === 'moderator'
+
+  let query = supabase.from('reviews').delete().eq('id', reviewId)
+  
+  // Если не админ и не модер, разрешаем удалять только свои отзывы
+  if (!isAdminOrMod) {
+    query = query.eq('user_id', user.id)
+  }
+
+  const { error } = await query
 
   if (error) {
     return { error: 'Ошибка при удалении отзыва: ' + error.message }
@@ -92,7 +105,7 @@ export async function toggleReviewLike(reviewId: string, albumId: string) {
   return { success: true }
 }
 
-export async function submitComment(reviewId: string, content: string, albumId: string) {
+export async function submitComment(reviewId: string, content: string, albumId: string, parentId?: string) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -104,11 +117,42 @@ export async function submitComment(reviewId: string, content: string, albumId: 
     .insert({
       user_id: user.id,
       review_id: reviewId,
-      content: content.trim()
+      content: content.trim(),
+      parent_id: parentId || null
     })
 
   if (error) {
     return { error: 'Ошибка при добавлении комментария: ' + error.message }
+  }
+
+  revalidatePath(`/album/${albumId}`)
+  return { success: true }
+}
+
+export async function deleteComment(commentId: string, albumId: string) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Необходимо авторизоваться' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isAdminOrMod = profile?.role === 'admin' || profile?.role === 'moderator'
+
+  let query = supabase.from('review_comments').delete().eq('id', commentId)
+
+  if (!isAdminOrMod) {
+    query = query.eq('user_id', user.id)
+  }
+
+  const { error } = await query
+
+  if (error) {
+    return { error: 'Ошибка при удалении комментария: ' + error.message }
   }
 
   revalidatePath(`/album/${albumId}`)

@@ -89,7 +89,7 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
     // Загружаем отзывы (тянем статистику и active_title_id)
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select('*, profiles!user_id(username, avatar_url, active_title_id, user_stats(releases_count, reviews_count, comments_count)), review_likes(user_id), review_comments(id, content, created_at, user_id, profiles!user_id(username, avatar_url))')
+      .select('*, profiles!user_id(username, avatar_url, active_title_id, user_stats(releases_count, reviews_count, comments_count)), review_likes(user_id), review_comments(id, content, created_at, user_id, parent_id, profiles!user_id(username, avatar_url))')
       .eq('item_id', id)
       .eq('item_type', 'album')
       .order('created_at', { ascending: false });

@@ -17,9 +17,17 @@ interface Review {
   created_at: string
 }
 
-export function ProfileReviewCard({ review, isOwner = false }: { review: Review, isOwner?: boolean }) {
+interface ProfileReviewCardProps {
+  review: Review
+  isOwner?: boolean
+  currentUserRole?: 'user' | 'moderator' | 'admin'
+}
+
+export function ProfileReviewCard({ review, isOwner = false, currentUserRole = 'user' }: ProfileReviewCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  
+  const canDelete = isOwner || currentUserRole === 'admin' || currentUserRole === 'moderator'
   const [rating, setRating] = useState(review.rating)
   const [reviewText, setReviewText] = useState(review.review_text || '')
   const [isPending, startTransition] = useTransition()
@@ -163,23 +171,29 @@ export function ProfileReviewCard({ review, isOwner = false }: { review: Review,
               )}
             </div>
 
-            {/* Кнопки Редактировать / Удалить (только для владельца) */}
-            {isOwner && (
+            {/* Кнопки Редактировать / Удалить (владелец или модератор) */}
+            {(isOwner || canDelete) && (
               <div className="flex gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="text-xs text-neutral-400 hover:text-[#a78bfa] font-medium cursor-pointer transition-colors"
-                >
-                  Редактировать
-                </button>
-                <span className="text-neutral-700">|</span>
-                <button
-                  onClick={handleDelete}
-                  disabled={isPending}
-                  className="text-xs text-neutral-400 hover:text-red-400 font-medium cursor-pointer transition-colors disabled:opacity-50"
-                >
-                  Удалить
-                </button>
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="text-xs text-neutral-400 hover:text-[#a78bfa] font-medium cursor-pointer transition-colors"
+                    >
+                      Редактировать
+                    </button>
+                    <span className="text-neutral-700">|</span>
+                  </>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={handleDelete}
+                    disabled={isPending}
+                    className="text-xs text-neutral-400 hover:text-rose-500 font-medium cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    Удалить
+                  </button>
+                )}
               </div>
             )}
           </div>

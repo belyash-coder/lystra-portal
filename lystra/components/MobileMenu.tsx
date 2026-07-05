@@ -80,6 +80,7 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
         <Link href="/search" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Поиск</Link>
         <Link href="/following" className="text-neutral-300 hover:text-[#34d399] active:opacity-60 transition-all">Подписки</Link>
         <Link href="/reviews" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Отзывы и рецензии</Link>
+        <Link href="/about" className="text-neutral-300 hover:text-[#34d399] active:opacity-60 transition-all">О нас</Link>
         
         <Link href="/discover" className="flex items-center justify-center gap-2 text-[#121212] font-bold bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-4 py-3 rounded-xl hover:scale-[1.02] active:scale-95 transition-transform shadow-[0_0_15px_rgba(52,211,153,0.2)]">
           <Dices className="w-5 h-5" /> Random Genre
