@@ -1,15 +1,16 @@
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ChatList } from '@/components/ChatList';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const revalidate = 0;
 
 export default async function FullChatsPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
-  if (!user) {
+  if (!user?.id) {
     redirect('/login');
   }
 
@@ -17,11 +18,10 @@ export default async function FullChatsPage({ params }: { params: Promise<{ id: 
   const targetUsername = decodeURIComponent(resolvedParams.id);
 
   // Находим профиль в базе данных
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('username', targetUsername)
-    .single();
+  const profile = await prisma.profiles.findUnique({
+    where: { username: targetUsername },
+    select: { id: true, username: true }
+  });
 
   if (!profile) {
     return <div className="p-12 text-center text-white">Профиль не найден</div>;

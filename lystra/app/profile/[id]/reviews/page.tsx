@@ -1,34 +1,22 @@
-import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { ProfileReviewCard } from '@/components/ProfileReviewCard';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const revalidate = 0;
 
-interface Review {
-  id: string;
-  item_id: string;
-  item_type: string;
-  item_title: string | null;
-  item_artist: string | null;
-  item_cover: string | null;
-  review_text: string | null;
-  rating: number;
-  created_at: string;
-}
-
 export default async function FullReviewsPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   const resolvedParams = await params;
   const targetUsername = decodeURIComponent(resolvedParams.id);
 
   // 1. Находим профиль по никнейму
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('username', targetUsername)
-    .single();
+  const profile = await prisma.profiles.findUnique({
+    where: { username: targetUsername },
+    select: { id: true, username: true }
+  });
 
   if (!profile) {
     return <div className="p-12 text-center text-white">Профиль не найден</div>;
@@ -36,14 +24,31 @@ export default async function FullReviewsPage({ params }: { params: Promise<{ id
 
   const isOwner = user?.id === profile.id;
 
-  // 2. Вытягиваем все отзывы без лимита
-  const { data: reviewsResult } = await supabase
-    .from('reviews')
-    .select('*')
-    .eq('user_id', profile.id)
-    .order('created_at', { ascending: false });
+  // Узнаем роль текущего пользователя (чтобы можно было удалять отзывы, если он админ)
+  let currentUserRole: 'user' | 'moderator' | 'admin' = 'user';
+  if (user?.id) {
+    const currProfile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    });
+    if (currProfile?.role) {
+      currentUserRole = currProfile.role as 'user' | 'moderator' | 'admin';
+    }
+  }
 
-  const reviews = (reviewsResult || []) as Review[];
+  // 2. Вытягиваем все отзывы через Prisma
+  const reviewsResult = await prisma.reviews.findMany({
+    where: { user_id: profile.id },
+    orderBy: { created_at: 'desc' }
+  });
+
+  // Преобразуем данные Prisma в формат, который ожидает компонент
+  const reviews = reviewsResult.map(r => ({
+    ...r,
+    id: r.id.toString(),
+    review_text: r.content,
+    created_at: r.created_at.toISOString()
+  })) as any[];
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-4 md:p-12 font-sans">
@@ -79,7 +84,7 @@ export default async function FullReviewsPage({ params }: { params: Promise<{ id
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-start pt-4">
             {reviews.map((review) => (
-              <ProfileReviewCard key={review.id} review={review} isOwner={isOwner} />
+              <ProfileReviewCard key={review.id} review={review} isOwner={isOwner} currentUserRole={currentUserRole} />
             ))}
           </div>
         )}

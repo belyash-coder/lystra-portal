@@ -1,17 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
 interface GenreSelectorProps {
   profileId: string;
   initialGenres: string[];
-  isEditable?: boolean; // Добавили новый параметр
+  isEditable?: boolean;
 }
 
 export default function GenreSelector({ profileId, initialGenres, isEditable = false }: GenreSelectorProps) {
-  const supabase = createClient();
   const router = useRouter();
 
   const [genres, setGenres] = useState<string[]>(initialGenres);
@@ -54,16 +52,12 @@ export default function GenreSelector({ profileId, initialGenres, isEditable = f
 
   const updateGenresInDb = async (newGenres: string[]) => {
     setGenres(newGenres);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ favorite_genres: newGenres })
-      .eq('id', profileId);
-
-    if (error) {
-      alert('Не удалось сохранить изменения');
-    } else {
-      router.refresh(); 
-    }
+    
+    // ВАЖНО: Supabase удален. 
+    // В будущем здесь нужно отправлять запрос на ваш новый API (например, fetch('/api/profile/genres', { method: 'POST', ... }))
+    console.warn('Сохранение жанров в БД временно отключено (Supabase удален).');
+    
+    router.refresh(); 
   };
 
   const handleAddGenre = (genreName: string) => {
@@ -89,7 +83,6 @@ export default function GenreSelector({ profileId, initialGenres, isEditable = f
             className="h-[28px] px-3 text-xs font-semibold bg-[#a78bfa]/10 text-[#a78bfa] border border-[#a78bfa]/20 rounded-full flex items-center gap-1.5 transition-all hover:bg-[#a78bfa]/20 whitespace-nowrap"
           >
             {genre}
-            {/* Крестик показывается только если режим редактирования включен */}
             {isEditable && (
               <button
                 onClick={() => handleRemoveGenre(genre)}
@@ -101,7 +94,6 @@ export default function GenreSelector({ profileId, initialGenres, isEditable = f
           </span>
         ))}
 
-        {/* Блок добавления показывается только если режим редактирования включен */}
         {isEditable && (
           isAdding ? (
             <div className="relative flex-shrink-0">

@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import GenreSidebar from "@/components/GenreSidebar";
 import Link from "next/link";
 import IndieReleasesGrid from "@/components/IndieReleasesGrid";
@@ -8,37 +7,15 @@ export const revalidate = 0;
 export default async function AllReleasesPage({
   searchParams,
 }: {
-  searchParams: { genre?: string };
+  searchParams: Promise<{ genre?: string }>;
 }) {
-  const supabase = await createClient();
   const params = await searchParams;
   const genre = params?.genre;
 
-  // Формируем базовый запрос
-  let query = supabase
-    .from("tracks")
-    .select(`
-      id,
-      title,
-      audio_path,
-      duration,
-      releases!inner (
-        id,
-        cover_path,
-        genre,
-        artists (
-          stage_name
-        )
-      )
-    `)
-    .order("created_at", { ascending: false });
-
-  // Применяем фильтр, если жанр выбран
-  if (genre) {
-    query = query.ilike('releases.genre', `%${genre}%`);
-  }
-
-  const { data: tracks } = await query;
+  // ВАЖНО: Таблицы tracks, releases и artists были удалены из БД.
+  // Возвращаем пустой массив, чтобы не сломать сетку релизов (IndieReleasesGrid), 
+  // пока вы не переведете получение музыки на внешнее API.
+  const tracks: any[] = [];
 
   return (
     <div className="min-h-screen bg-[#121212] text-white py-8 md:py-12">
@@ -70,7 +47,7 @@ export default async function AllReleasesPage({
             </div>
           </div>
 
-          <IndieReleasesGrid initialTracks={tracks || []} />
+          <IndieReleasesGrid initialTracks={tracks} />
         </div>
       </div>
     </div>

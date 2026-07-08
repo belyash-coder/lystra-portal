@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Heart } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
 interface LikeButtonProps {
@@ -12,7 +11,6 @@ interface LikeButtonProps {
 }
 
 export function LikeButton({ reviewId, initialIsLiked = false, initialLikesCount = 0 }: LikeButtonProps) {
-  const supabase = createClient();
   const router = useRouter();
   
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -25,42 +23,20 @@ export function LikeButton({ reviewId, initialIsLiked = false, initialLikesCount
     setIsLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert('Пожалуйста, войдите в аккаунт, чтобы ставить лайки.');
-        setIsLoading(false);
-        return;
-      }
-
       // Оптимистичный UI: сразу переключаем состояние и меняем цифру
       const nextIsLiked = !isLiked;
       setIsLiked(nextIsLiked);
       setLikesCount(prev => nextIsLiked ? prev + 1 : prev - 1);
 
-      if (isLiked) {
-        // Убираем лайк из БД
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('review_id', reviewId)
-          .eq('user_id', user.id);
-          
-        if (error) throw error;
-      } else {
-        // Добавляем лайк в БД
-        const { error } = await supabase
-          .from('likes')
-          .insert({ review_id: reviewId, user_id: user.id });
-          
-        if (error) throw error;
-      }
+      // ВАЖНО: Supabase удален. 
+      // В будущем здесь нужно будет отправлять запрос на ваш новый API (Prisma + NextAuth)
+      console.warn('Сохранение лайков в БД временно отключено (Supabase удален).');
       
       router.refresh();
 
     } catch (error) {
       console.error('Ошибка при обработке лайка:', error);
-      // Возвращаем как было, если сервер ответил ошибкой
+      // Возвращаем как было, если произошла ошибка
       setIsLiked(isLiked);
       setLikesCount(likesCount);
     } finally {

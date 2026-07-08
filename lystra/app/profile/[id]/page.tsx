@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -10,31 +9,10 @@ import { ProfileReviewCard } from '@/components/ProfileReviewCard';
 import { FollowButton } from '@/components/FollowButton';
 import { ChatWidgetLauncher } from '@/components/ChatWidgetLauncher';
 import { ChatList } from '@/components/ChatList';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
-// Отключаем кэширование, чтобы чаты и отзывы всегда были актуальными
 export const revalidate = 0;
-
-interface Profile {
-  id: string;
-  username: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  favorite_genres: string[] | null;
-  active_title_id: string | null;
-  role: 'user' | 'moderator' | 'admin';
-}
-
-interface Review {
-  id: string;
-  item_id: string;
-  item_type: string;
-  item_title: string | null;
-  item_artist: string | null;
-  item_cover: string | null;
-  review_text: string | null;
-  rating: number;
-  created_at: string;
-}
 
 interface FavoriteAlbum {
   id: string;
@@ -45,113 +23,116 @@ interface FavoriteAlbum {
 }
 
 export default async function DynamicProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   const resolvedParams = await params;
-  const targetUsername = decodeURIComponent(resolvedParams.id); // Читаем никнейм из URL
+  const targetUsername = decodeURIComponent(resolvedParams.id);
 
   // 1. Сначала находим профиль по никнейму
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('username', targetUsername)
-    .single();
-
-  const profile = profileData as Profile | null;
+  const profile = await prisma.profiles.findUnique({
+    where: { username: targetUsername }
+  });
 
   if (!profile) {
     return <div className="p-12 text-center text-white">Профиль не найден</div>;
   }
 
-  // 2. Берем его реальный системный ID для остальных запросов
+  // 2. Берем его реальный системный ID
   const targetProfileId = profile.id;
   const isOwner = user?.id === targetProfileId;
 
-  // Получаем роль текущего авторизованного пользователя для проверки прав модератора
+  // Получаем роль текущего пользователя
   let currentUserRole: 'user' | 'moderator' | 'admin' = 'user';
-  if (user) {
-    const { data: currProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle();
+  if (user?.id) {
+    const currProfile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    });
     if (currProfile?.role) {
       currentUserRole = currProfile.role as 'user' | 'moderator' | 'admin';
     }
   }
 
-  // 3. Параллельно запрашиваем остальные данные по реальному ID
-  const [reviewsResult, collectionsResult, followersResult, followingResult] = await Promise.all([
-    supabase.from('reviews').select('*').eq('user_id', targetProfileId).order('created_at', { ascending: false }),
-    supabase.from('collections').select('*').eq('user_id', targetProfileId).eq('item_type', 'album').order('created_at', { ascending: false }),
-    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetProfileId),
-    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetProfileId)
+  // 3. Параллельно запрашиваем остальные данные
+  // Заменяем missing таблицу follows на friends
+  const [reviewsResult, collectionsResult, followersCount, followingCount] = await Promise.all([
+    prisma.reviews.findMany({ where: { user_id: targetProfileId }, orderBy: { created_at: 'desc' } }),
+    prisma.collections.findMany({ where: { user_id: targetProfileId, item_type: 'album' }, orderBy: { created_at: 'desc' } }),
+    prisma.friends.count({ where: { friend_id: targetProfileId } }),
+    prisma.friends.count({ where: { user_id: targetProfileId } })
   ]);
 
-  const safeReviews = (reviewsResult.data || []) as Review[];
-  const rawCollections = collectionsResult.data || [];
+  // Сериализуем BigInt и мапим поля для UI
+  const safeReviews = reviewsResult.map(r => ({
+    ...r,
+    id: r.id.toString(),
+    review_text: r.content,
+    created_at: r.created_at.toISOString()
+  })) as any[];
 
-  const followersCount = followersResult.count || 0;
-  const followingCount = followingResult.count || 0;
-
-  // 1. Подтягиваем статистику для рамок
-  const { data: statsData } = await supabase.from('user_stats').select('*').eq('user_id', targetProfileId).maybeSingle();
-  const totalActivity = (statsData?.releases_count || 0) + (statsData?.reviews_count || 0) + (statsData?.comments_count || 0);
+  // 1. Статистика и рамки (теперь базируется на XP, так как user_stats удалена)
+  const totalActivity = profile.xp || 0;
   
-  // Расчет рамок на лету
-  let ringClasses = "border-2 border-transparent"; // 1 уровень
+  let ringClasses = "border-2 border-transparent";
   if (totalActivity >= 300) {
-    // 4 уровень: Толстый градиент + темный зазор + внешняя лавандовая линия (сложная двойная рамка)
     ringClasses = "p-1.5 bg-gradient-to-tr from-[#a78bfa] via-[#34d399] to-[#a78bfa] shadow-[0_0_0_4px_#121212,0_0_0_6px_#a78bfa]";
   } else if (totalActivity >= 100) {
-    ringClasses = "border-4 border-[#34d399] shadow-[0_0_15px_rgba(52,211,153,0.3)]"; // 3 уровень (Мятный со свечением)
+    ringClasses = "border-4 border-[#34d399] shadow-[0_0_15px_rgba(52,211,153,0.3)]";
   } else if (totalActivity >= 28) {
-    ringClasses = "border-2 border-[#a78bfa] ring-4 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]"; // 2 уровень (Лавандовый)
+    ringClasses = "border-2 border-[#a78bfa] ring-4 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]";
   }
 
-  // 2. Подтягиваем активное звание (плашку)
+  // 2. Активное звание (берется напрямую из колонки title в profiles)
   let activeTitle = null;
-  if (profile.active_title_id) {
-    const { data: titleData } = await supabase.from('achievements').select('*').eq('id', profile.active_title_id).single();
-    activeTitle = titleData;
+  if (profile.title) {
+    activeTitle = { name: profile.title, description: "Статус пользователя" };
   }
 
-  // 3. Подтягиваем все значки/медальки
-  const { data: medalsData } = await supabase.from('user_achievements').select('achievements(*)').eq('user_id', targetProfileId);
-  const medals = medalsData?.map((m: any) => m.achievements).filter((a: any) => a?.type === 'medal') || [];
+  // 3. Значки/медали из таблицы achievements
+  const userAchievements = await prisma.achievements.findMany({ where: { user_id: targetProfileId } });
+  const medals = userAchievements.map(a => ({
+    id: a.id.toString(),
+    name: a.achievement_name,
+    description: "Достижение разблокировано",
+    icon_name: 'star' // Дефолтная иконка, так как справочника иконок больше нет
+  }));
 
   let isFollowing = false;
   let initialMessages: any[] = [];
 
-  if (!isOwner && user) {
-    const { data: followData } = await supabase
-      .from('follows')
-      .select('follower_id')
-      .eq('follower_id', user.id)
-      .eq('following_id', targetProfileId)
-      .maybeSingle(); 
+  if (!isOwner && user?.id) {
+    const followData = await prisma.friends.findFirst({
+      where: { user_id: user.id, friend_id: targetProfileId }
+    });
     isFollowing = !!followData;
 
-    // Подтягиваем историю сообщений для виджета чата
-    const { data: messagesData } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${targetProfileId}),and(sender_id.eq.${targetProfileId},receiver_id.eq.${user.id})`)
-      .order('created_at', { ascending: true });
+    const messagesData = await prisma.messages.findMany({
+      where: {
+        OR: [
+          { sender_id: user.id, receiver_id: targetProfileId },
+          { sender_id: targetProfileId, receiver_id: user.id }
+        ]
+      },
+      orderBy: { created_at: 'asc' }
+    });
     
-    if (messagesData) initialMessages = messagesData;
+    initialMessages = messagesData.map(m => ({
+      ...m,
+      id: m.id.toString(),
+      created_at: m.created_at.toISOString()
+    }));
   }
 
   const favoriteAlbums = await Promise.all(
-    rawCollections.map(async (item) => {
+    collectionsResult.map(async (item) => {
       try {
         const res = await fetch(`https://api.deezer.com/album/${item.item_id}`);
         if (!res.ok) return null;
         const albumData = await res.json();
         if (albumData.error) return null;
         return {
-          id: item.id,
+          id: item.id.toString(),
           deezer_album_id: item.item_id,
           title: albumData.title,
           artist: albumData.artist?.name,
@@ -173,14 +154,13 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
         
         <section className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 bg-white/5 p-5 md:p-8 rounded-2xl border border-white/10 relative">
           <div className={`w-24 h-24 md:w-32 md:h-32 relative rounded-full flex-shrink-0 transition-all z-10 ${ringClasses}`}>
-            {/* Анимация свечения для максимального уровня (увеличен радиус из-за двойной рамки) */}
             {totalActivity >= 300 && (
               <div className="absolute -inset-3 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-xl opacity-50 animate-pulse -z-10"></div>
             )}
             <div className="w-full h-full relative rounded-full overflow-hidden bg-gray-800">
               {profile?.avatar_url ? (
                 <Image 
-                  src={`${profile.avatar_url}?t=${new Date(profile.bio || '').getTime()}`}
+                  src={`${profile.avatar_url}?t=${new Date().getTime()}`}
                   alt="Аватар пользователя" 
                   fill 
                   className="object-cover"
@@ -212,13 +192,10 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                       <span className="px-3 py-0.5 bg-[#34d399] text-[#121212] text-xs rounded-full font-bold inline-block shadow-[0_0_10px_rgba(52,211,153,0.2)]">
                         {activeTitle.name}
                       </span>
-                      
-                      {/* Всплывающая подсказка */}
                       <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-10 w-max max-w-[200px] translate-y-2 group-hover:translate-y-0">
                         <div className="bg-[#121212] border border-white/10 text-white text-xs py-2 px-3 rounded-xl shadow-2xl relative text-center">
                           <p className="font-bold text-[#a78bfa]">Текущий статус</p>
                           <p className="text-neutral-400 mt-1 leading-snug">{activeTitle.description}</p>
-                          {/* Маленький треугольник для подсказки */}
                           <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#121212] border-b border-r border-white/10 rotate-45"></div>
                         </div>
                       </div>
@@ -227,14 +204,13 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                 </div>
                 
                 {isOwner ? (
-                  <EditProfileModal profile={profile} />
+                  <EditProfileModal profile={profile as any} />
                 ) : (
                   user && (
                     <div className="flex items-center gap-2">
                       <FollowButton targetUserId={profile.id} initialIsFollowing={isFollowing} />
-                      
                       <ChatWidgetLauncher 
-                        currentUserId={user.id} 
+                        currentUserId={user.id as string} 
                         targetProfile={{
                           id: profile.id,
                           username: profile.username || 'user',
@@ -283,57 +259,25 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
               </div>
             </div>
 
-            {/* Стенд с медальками */}
-              {medals.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <p className="text-[10px] text-neutral-500 mb-2 uppercase tracking-widest font-semibold">Награды</p>
-                  <div className="flex flex-wrap gap-3">
-                    {medals.map((medal: any) => (
-                      <div key={medal.id} className="group relative flex items-center justify-center w-11 h-11 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-[#a78bfa]/50 hover:-translate-y-1 hover:shadow-[0_4px_12px_rgba(167,139,250,0.15)] transition-all duration-300 cursor-help">
-                        
-                        {/* Векторные иконки наград */}
-                        {medal.icon_name === 'star' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        )}
-                        {medal.icon_name === 'zap' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#34d399] drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                        )}
-                        {medal.icon_name === 'flame' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
-                        )}
-                        {medal.icon_name === 'headphones' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#a78bfa] drop-shadow-[0_0_8px_rgba(167,139,250,0.5)]"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                        )}
-                        {medal.icon_name === 'message-circle' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-sky-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                        )}
-                        {medal.icon_name === 'disc' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-indigo-400 drop-shadow-[0_0_8px_rgba(129,140,248,0.5)]"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
-                        )}
-                        {medal.icon_name === 'heart' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                        )}
-                        {medal.icon_name === 'shield' && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                        )}
-                        {(!['star', 'zap', 'flame', 'headphones', 'message-circle', 'disc', 'heart', 'shield'].includes(medal.icon_name)) && (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-neutral-400"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
-                        )}
-                        
-                        {/* Всплывающая подсказка */}
-                        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-10 w-max max-w-[200px] translate-y-2 group-hover:translate-y-0">
-                          <div className="bg-[#121212] border border-white/10 text-white text-xs py-2 px-3 rounded-xl shadow-2xl relative">
-                            <p className="font-bold text-[#a78bfa]">{medal.name}</p>
-                            <p className="text-neutral-400 mt-1 leading-snug">{medal.description}</p>
-                            {/* Маленький треугольник для подсказки */}
-                            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#121212] border-b border-r border-white/10 rotate-45"></div>
-                          </div>
+            {medals.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-[10px] text-neutral-500 mb-2 uppercase tracking-widest font-semibold">Награды</p>
+                <div className="flex flex-wrap gap-3">
+                  {medals.map((medal: any) => (
+                    <div key={medal.id} className="group relative flex items-center justify-center w-11 h-11 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-[#a78bfa]/50 hover:-translate-y-1 hover:shadow-[0_4px_12px_rgba(167,139,250,0.15)] transition-all duration-300 cursor-help">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                      <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-10 w-max max-w-[200px] translate-y-2 group-hover:translate-y-0">
+                        <div className="bg-[#121212] border border-white/10 text-white text-xs py-2 px-3 rounded-xl shadow-2xl relative">
+                          <p className="font-bold text-[#a78bfa]">{medal.name}</p>
+                          <p className="text-neutral-400 mt-1 leading-snug">{medal.description}</p>
+                          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#121212] border-b border-r border-white/10 rotate-45"></div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -347,8 +291,7 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                 Мои диалоги
               </h2>
             </div>
-            
-            <ChatList currentUserId={user.id} username={profile?.username || ''} limit={5} />
+            <ChatList currentUserId={user.id as string} username={profile?.username || ''} limit={5} />
           </section>
         )}
 
@@ -377,7 +320,6 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                   )}
                   <Link href={`/album/${album.deezer_album_id}`} className="block cursor-pointer">
                     <div className="relative aspect-square z-10 rounded-xl">
-                      {/* Выезжающий винил */}
                       <div className="absolute inset-0 bg-[#0a0a0a] rounded-full border border-white/10 shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-x-4 sm:group-hover:translate-x-8 group-hover:rotate-[60deg] transition-all duration-700 ease-in-out flex items-center justify-center -z-10">
                         <div className="w-1/3 h-1/3 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full flex items-center justify-center shadow-inner">
                           <div className="w-2 h-2 bg-[#121212] rounded-full"></div>
@@ -385,7 +327,6 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                         <div className="absolute inset-1 border border-white/5 rounded-full"></div>
                         <div className="absolute inset-4 border border-white/5 rounded-full"></div>
                       </div>
-                      {/* Сама обложка */}
                       <div className="absolute inset-0 bg-neutral-800 rounded-xl overflow-hidden border border-white/5 group-hover:border-[#34d399]/50 transition-colors shadow-lg group-hover:shadow-[0_8px_20px_rgba(52,211,153,0.15)] z-10">
                         {album.cover_url ? (
                           <Image src={album.cover_url} alt={album.title} fill className="object-cover transition-transform duration-500" unoptimized />

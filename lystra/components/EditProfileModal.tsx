@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useTransition } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import Cropper from 'react-easy-crop';
@@ -18,7 +17,6 @@ interface EditProfileModalProps {
 }
 
 export default function EditProfileModal({ profile }: EditProfileModalProps) {
-  const supabase = createClient();
   const router = useRouter();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -64,19 +62,11 @@ export default function EditProfileModal({ profile }: EditProfileModalProps) {
       const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
       if (!croppedImage) throw new Error('Не удалось обрезать изображение');
 
-      const filePath = `${profile.id}-${Math.random()}.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, croppedImage, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      setAvatarUrl(publicUrl);
+      // ВАЖНО: Supabase Storage удален. 
+      // Временно используем локальный base64 для отображения на фронтенде.
+      // Позже нужно настроить загрузку в S3/MinIO через API Route.
+      console.warn('Сохранение файлов в БД отключено. Настройте S3 хранилище.');
+      setAvatarUrl(imageToCrop); 
       setImageToCrop(null);
     } catch (error) {
       alert('Ошибка при загрузке фото');
@@ -90,12 +80,9 @@ export default function EditProfileModal({ profile }: EditProfileModalProps) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ username, bio, avatar_url: avatarUrl })
-        .eq('id', profile.id);
-
-      if (error) throw error;
+      // ВАЖНО: Supabase удален.
+      // В будущем здесь нужно вызвать Server Action для обновления Prisma БД.
+      console.warn('Сохранение профиля временно отключено (Supabase удален).');
 
       setIsOpen(false);
       router.refresh();
@@ -185,9 +172,7 @@ export default function EditProfileModal({ profile }: EditProfileModalProps) {
               <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full bg-[#121212] border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#a78bfa] resize-none"/>
             </div>
 
-            {/* ОБНОВЛЕННЫЙ БЛОК КНОПОК */}
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-neutral-800 w-full">
-              
               <button
                 type="button"
                 onClick={handleDeleteAccount}

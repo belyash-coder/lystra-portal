@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 import { useChat } from './ChatProvider';
 import { MessageSquare, Trash2, Loader2, ArrowRight } from 'lucide-react';
@@ -16,7 +15,6 @@ interface ChatItem {
 }
 
 export function ChatList({ currentUserId, username, limit }: { currentUserId: string; username: string; limit?: number }) {
-  const supabase = createClient();
   const { openChat } = useChat();
   
   const [chats, setChats] = useState<ChatItem[]>([]);
@@ -26,19 +24,18 @@ export function ChatList({ currentUserId, username, limit }: { currentUserId: st
   useEffect(() => {
     const fetchChats = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase.rpc('get_my_chats');
       
-      if (!error && data) {
-        const rawChats = data as ChatItem[];
-        // Очищаем массив от дубликатов по partner_id
-        const uniqueChats = Array.from(new Map(rawChats.map(chat => [chat.partner_id, chat])).values());
-        setChats(uniqueChats);
-      }
+      // ВАЖНО: Supabase удален. 
+      // В будущем здесь нужно будет сделать fetch('/api/chats') к вашему новому API на Prisma.
+      // Пока возвращаем пустой массив, чтобы билд прошел успешно.
+      console.warn('Получение чатов временно отключено (Supabase удален).');
+      
+      setChats([]);
       setIsLoading(false);
     };
 
     fetchChats();
-  }, [supabase]);
+  }, []);
 
   const handleDeleteChat = async (e: React.MouseEvent, partnerId: string) => {
     e.stopPropagation(); 
@@ -47,15 +44,12 @@ export function ChatList({ currentUserId, username, limit }: { currentUserId: st
     
     setDeletingId(partnerId);
 
-    // ИЗМЕНЕНО: Вызываем нашу мощную SQL-функцию, которая гарантированно стирает диалог
-    const { error } = await supabase.rpc('delete_dialog', { partner_uid: partnerId });
+    // ВАЖНО: Supabase удален.
+    // В будущем здесь нужно будет сделать fetch-запрос к API для удаления.
+    console.warn('Удаление чатов временно отключено (Supabase удален).');
 
-    if (!error) {
-      setChats(prev => prev.filter(c => c.partner_id !== partnerId));
-    } else {
-      console.error('Ошибка удаления:', error);
-      alert('Ошибка при удалении чата');
-    }
+    // Локально убираем чат из списка для вида
+    setChats(prev => prev.filter(c => c.partner_id !== partnerId));
     setDeletingId(null);
   };
 

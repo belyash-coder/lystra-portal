@@ -1,21 +1,21 @@
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export default async function ProfileRedirectPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   // Если не авторизован - кидаем на главную
-  if (!user) {
+  if (!user?.id) {
     redirect('/'); 
   }
 
   // Получаем username для формирования ссылки
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single();
+  const profile = await prisma.profiles.findUnique({
+    where: { id: user.id },
+    select: { username: true }
+  });
 
   // Перекидываем пользователя на страницу с никнеймом
   if (profile?.username) {
