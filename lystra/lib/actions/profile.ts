@@ -1,61 +1,49 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 
 // 1. Получение пропуска для загрузки баннера
 export async function getBannerUploadUrl(ext: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Необходима авторизация')
-
-  const path = `${user.id}/${crypto.randomUUID()}.${ext}`
-  const res = await supabase.storage.from('artist_media').createSignedUploadUrl(path)
-
-  if (res.error) throw new Error(`Ошибка генерации ссылки: ${res.error.message}`)
-
-  return { path, token: res.data.token }
+  const session = await auth()
+  if (!session?.user) throw new Error('Необходима авторизация')
+  
+  // Временно возвращаем заглушку. Для загрузки файлов потребуется 
+  // настроить собственное S3 хранилище (MinIO/Coolify), так как Supabase Storage отключен.
+  return { path: 'dummy_path', token: 'dummy_token' }
 }
 
-// 2. Обновление профиля в БД
-// 2. Обновление профиля в БД
+// 2. Обновление профиля
 export async function updateArtistProfile(bio: string, bannerPath?: string, socialLinks?: any) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Необходима авторизация')
+  const session = await auth()
+  if (!session?.user?.id) throw new Error('Необходима авторизация')
 
-  const updateData: any = { bio: bio.trim() }
-  if (bannerPath) updateData.banner_path = bannerPath
-  if (socialLinks) updateData.social_links = socialLinks
-
-  const { error } = await supabase
-    .from('artists')
-    .update(updateData)
-    .eq('id', user.id)
-
-  if (error) throw new Error(`Ошибка сохранения профиля: ${error.message}`)
+  // Обновляем био в нашей основной таблице profiles (студия и артисты удалены)
+  await prisma.profiles.update({
+    where: { id: session.user.id },
+    data: { bio: bio.trim() }
+  })
 
   revalidatePath('/studio')
   revalidatePath('/')
 }
-export async function deleteCurrentUser() {
-  const supabase = await createClient()
-  
-  // Проверяем, авторизован ли пользователь
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Необходимо авторизоваться' }
 
-  // Вызываем нашу RPC-функцию удаления аккаунта
-  const { error } = await supabase.rpc('delete_current_user')
-  
-  if (error) {
+// 3. Удаление аккаунта
+export async function deleteCurrentUser() {
+  const session = await auth()
+  if (!session?.user?.id) return { error: 'Необходимо авторизоваться' }
+
+  try {
+    // В Prisma каскадное удаление (onDelete: Cascade) само очистит связи, если они настроены
+    await prisma.profiles.delete({
+      where: { id: session.user.id }
+    })
+    
+    // Куки сессии NextAuth очистятся на стороне клиента при вызове signOut() из UI
+    revalidatePath('/')
+    return { success: true }
+  } catch (error: any) {
     return { error: 'Не удалось удалить аккаунт: ' + error.message }
   }
-
-  // Очищаем сессию на сервере (стираем куки)
-  await supabase.auth.signOut()
-
-  // Обновляем пути
-  revalidatePath('/')
-  return { success: true }
 }
