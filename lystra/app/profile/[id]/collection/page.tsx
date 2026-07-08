@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RemoveFromCollectionButton } from '@/components/RemoveFromCollectionButton';
@@ -15,45 +16,43 @@ interface FavoriteAlbum {
 }
 
 export default async function FullCollectionPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const currentUser = session?.user;
 
   const resolvedParams = await params;
-  const targetUsername = decodeURIComponent(resolvedParams.id); // Читаем никнейм из URL
+  const targetUsername = decodeURIComponent(resolvedParams.id);
 
-  // Находим профиль по никнейму
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('username', targetUsername)
-    .single();
+  // Находим профиль по никнейму через Prisma
+  const profile = await prisma.profiles.findFirst({
+    where: { username: targetUsername },
+    select: { id: true, username: true }
+  });
 
   if (!profile) {
     return <div className="p-12 text-center text-white">Профиль не найден</div>;
   }
 
-  const isOwner = user?.id === profile.id;
+  const isOwner = currentUser?.id === profile.id;
 
-  // Запрашиваем ВСЕ альбомы пользователя, без лимита
-  const { data: rawCollections } = await supabase
-    .from('collections')
-    .select('*')
-    .eq('user_id', profile.id)
-    .eq('item_type', 'album')
-    .order('created_at', { ascending: false });
-
-  const collections = rawCollections || [];
+  // Запрашиваем ВСЕ альбомы пользователя
+  const collections = await prisma.collections.findMany({
+    where: { 
+      user_id: profile.id,
+      item_type: 'album'
+    },
+    orderBy: { created_at: 'desc' }
+  });
 
   // Подтягиваем данные обложкок и названий из Deezer
   const favoriteAlbums = await Promise.all(
-    collections.map(async (item) => {
+    collections.map(async (item: any) => {
       try {
         const res = await fetch(`https://api.deezer.com/album/${item.item_id}`);
         if (!res.ok) return null;
         const albumData = await res.json();
         if (albumData.error) return null;
         return {
-          id: item.id,
+          id: item.id.toString(), // Безопасная конвертация для Next.js
           deezer_album_id: item.item_id,
           title: albumData.title,
           artist: albumData.artist?.name,

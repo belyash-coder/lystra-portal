@@ -1,83 +1,67 @@
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 import { GlobalReviewCard } from '@/components/GlobalReviewCard'
 import { FollowingTrackCard } from '@/components/FollowingTrackCard'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-export const revalidate = 0 // Отключаем кэш для максимальной актуальности ленты
+export const revalidate = 0 
 
 export default async function FollowingFeedPage() {
-  const supabase = await createClient()
-
-  // 1. Проверяем авторизацию и получаем роль
-  const { data: { user } } = await supabase.auth.getUser()
+  // 1. Проверяем авторизацию и получаем сессию
+  const session = await auth()
   
-  if (!user) {
-    redirect('/') // Если не авторизован, отправляем на главную
+  if (!session?.user?.id) {
+    redirect('/') 
   }
 
+  const currentUserId = session.user.id
   let currentUserRole: 'user' | 'moderator' | 'admin' = 'user'
-  const { data: currProfile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle()
+  
+  const currProfile = await prisma.profiles.findUnique({
+    where: { id: currentUserId },
+    select: { role: true }
+  })
     
   if (currProfile?.role) {
     currentUserRole = currProfile.role as 'user' | 'moderator' | 'admin'
   }
 
-  // 2. Получаем список ID пользователей, на которых подписан текущий юзер
-  const { data: followsData } = await supabase
-    .from('follows')
-    .select('following_id')
-    .eq('follower_id', user.id)
-
-  const followingIds = followsData?.map(f => f.following_id) || []
+  // 2. Получаем список ID пользователей, на которых подписан текущий юзер (из таблицы friends)
+  const followsData = await prisma.friends.findMany({
+    where: { user_id: currentUserId },
+    select: { friend_id: true }
+  })
+const followingIds = followsData.map((f: any) => f.friend_id)
 
   let feedItems: any[] = []
 
   // 3. Если есть подписки, собираем общую ленту
   if (followingIds.length > 0) {
-    // 3.1. Запрашиваем отзывы
-    const { data: reviewsData } = await supabase
-      .from('reviews')
-      .select('*, profiles!user_id(username, avatar_url, role)')
-      .in('user_id', followingIds)
-      .order('created_at', { ascending: false })
-      .limit(30)
+    // 3.1. Запрашиваем отзывы через Prisma
+    const reviewsData = await prisma.reviews.findMany({
+      where: { user_id: { in: followingIds } },
+      orderBy: { created_at: 'desc' },
+      take: 30,
+      include: {
+        profiles: {
+          select: { username: true, avatar_url: true, role: true }
+        }
+      }
+    })
 
-    // 3.2. Запрашиваем добавленные инди-релизы (с данными профилей)
-    const { data: tracksData } = await supabase
-      .from('tracks')
-      .select(`
-        id,
-        title,
-        audio_path,
-        duration,
-        created_at,
-        user_id,
-        releases!inner (
-          id,
-          cover_path,
-          genre,
-          artists (
-            stage_name
-          )
-        ),
-        profiles!user_id (
-          username,
-          avatar_url,
-          role
-        )
-      `)
-      .in('user_id', followingIds)
-      .order('created_at', { ascending: false })
-      .limit(30)
+    // 3.2. Треков больше нет (отказались от функционала студии), оставляем пустой массив
+    const tracksData: any[] = []
 
-    // 3.3. Добавляем маркер типа и объединяем массивы
-    const formattedReviews = (reviewsData || []).map(r => ({ ...r, feed_type: 'review' }))
-    const formattedTracks = (tracksData || []).map(t => ({ ...t, feed_type: 'track' }))
+    // 3.3. Добавляем маркер типа и форматируем
+    const formattedReviews = reviewsData.map((r: any) => ({ 
+      ...r, 
+      id: r.id.toString(), // Конвертируем BigInt в строку
+      feed_type: 'review',
+      review_text: r.content
+    }))
+    
+    const formattedTracks = tracksData.map((t: any) => ({ ...t, feed_type: 'track' }))
 
     // 3.4. Сортируем общий массив от новых к старым
     feedItems = [...formattedReviews, ...formattedTracks].sort((a, b) => 
@@ -124,7 +108,7 @@ export default async function FollowingFeedPage() {
                 <GlobalReviewCard 
                   key={`rev-${item.id}`} 
                   review={item} 
-                  currentUserId={user.id}
+                  currentUserId={currentUserId}
                   currentUserRole={currentUserRole}
                 />
               ) : (

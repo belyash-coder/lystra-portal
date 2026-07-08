@@ -16,7 +16,7 @@ export function FollowButton({ targetUserId, initialIsFollowing }: FollowButtonP
   const handleFollow = () => {
     startTransition(async () => {
       try {
-        await toggleFollow(targetUserId, pathname)
+        await toggleFollow(targetUserId, pathname || '')
       } catch (error: any) {
         alert(error.message)
       }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { GlobalReviewCard } from './GlobalReviewCard';
 
 interface ReviewsFeedProps {
@@ -12,54 +11,26 @@ interface ReviewsFeedProps {
 
 export function ReviewsFeed({ initialReviews, currentUserId, currentUserRole = 'user' }: ReviewsFeedProps) {
   const [reviews, setReviews] = useState(initialReviews);
-  const [hasMore, setHasMore] = useState(initialReviews.length === 20);
+  // Временно отключаем кнопку "загрузить еще", пока не сделаем API /api/reviews
+  const [hasMore, setHasMore] = useState(false); 
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClient();
 
-  // Realtime подписка на появление новых отзывов в базе
+  // TODO: Настроить Realtime подписку через новый бэкенд
   useEffect(() => {
-    const channel = supabase
-      .channel('public:reviews')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'reviews' },
-        async (payload) => {
-          // Подтягиваем данные профиля для нового отзыва
-          const { data: newReview } = await supabase
-            .from('reviews')
-            .select('*, profiles(username, avatar_url, role)')
-            .eq('id', payload.new.id)
-            .single();
-
-          if (newReview) {
-            setReviews((prev) => [newReview, ...prev]);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase]);
+    // Временно отключено
+  }, []);
 
   const loadMore = async () => {
     if (isLoading) return;
     setIsLoading(true);
 
-    const { data } = await supabase
-      .from('reviews')
-      .select('*, profiles!user_id(username, avatar_url, role)')
-      .order('created_at', { ascending: false })
-      .range(reviews.length, reviews.length + 19);
-
-    if (data && data.length > 0) {
-      setReviews((prev) => [...prev, ...data]);
-      if (data.length < 20) setHasMore(false);
-    } else {
-      setHasMore(false);
+    try {
+      // TODO: Заменить на fetch к /api/reviews?offset=...
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   if (reviews.length === 0) {

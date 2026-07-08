@@ -1,41 +1,32 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 
 export async function POST(req: Request) {
-  // Инициализируем клиента только в момент запроса, чтобы не крашить сборку Vercel
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-
-    // Парсим body, чтобы понять, какое действие совершил юзер
+    const userId = session.user.id;
     const body = await req.json();
-    const action = body.action; // Ожидаем 'share' или 'add_friend'
-    const friend_id = body.friend_id; // ID друга, которого добавляем
+    const action = body.action; // 'share' или 'add_friend'
+    const friend_id = body.friend_id;
 
     if (!action) return NextResponse.json({ error: 'Action is required' }, { status: 400 });
 
     // 1. Получаем текущий профиль
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('xp, level')
-      .eq('id', user.id)
-      .single();
+    const profile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: { xp: true, level: true }
+    });
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-    // 2. Выдаем XP (допустим, +15 XP за социальные взаимодействия)
+    // 2. Выдаем XP (+15 XP за социальные взаимодействия)
     const currentXp = profile.xp || 0;
     const currentLevel = profile.level || 1;
     
@@ -43,21 +34,23 @@ export async function POST(req: Request) {
     const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
     const leveledUp = newLevel > currentLevel;
 
-    await supabase
-      .from('profiles')
-      .update({ xp: newXp, level: newLevel })
-      .eq('id', user.id);
+    await prisma.profiles.update({
+      where: { id: userId },
+      data: { xp: newXp, level: newLevel }
+    });
 
-    // 3. Проверяем и выдаем социальные ачивки
+    // 3. Проверяем и выдаем социальные ачивки и связи
     const newAchievements: string[] = [];
 
-    const awardAchievement = async (achievementId: string) => {
-      // Пытаемся записать ачивку. Если она уже есть, сработает ограничение уникальности БД и ошибка проигнорируется
-      const { error } = await supabase
-        .from('user_achievements')
-        .insert({ user_id: user.id, achievement_id: achievementId });
-      
-      if (!error) newAchievements.push(achievementId);
+    const awardAchievement = async (achievementName: string) => {
+      try {
+        await prisma.achievements.create({
+          data: { user_id: userId, achievement_name: achievementName }
+        });
+        newAchievements.push(achievementName);
+      } catch (e) {
+        // Если ачивка уже есть, сработает уникальное ограничение Prisma, просто игнорируем
+      }
     };
 
     if (action === 'share') {
@@ -65,14 +58,13 @@ export async function POST(req: Request) {
     } else if (action === 'add_friend') {
       if (!friend_id) return NextResponse.json({ error: 'Friend ID is required' }, { status: 400 });
 
-      // Записываем дружбу в таблицу (измени 'friends' на свое название таблицы, если оно другое)
-      const { error: friendError } = await supabase
-        .from('friends')
-        .insert({ user_id: user.id, friend_id: friend_id });
-
-      if (friendError) {
-        console.error('Ошибка записи в друзья:', friendError);
-        // Если ошибка из-за того, что они уже друзья (нарушение уникальности), код пойдет дальше и не упадет
+      try {
+        await prisma.friends.create({
+          data: { user_id: userId, friend_id: friend_id } // status по умолчанию будет "pending"
+        });
+      } catch (e) {
+        // Ошибка уникальности, если они уже друзья или заявка уже отправлена
+        console.error('Ошибка записи в друзья (возможно уже есть):', e);
       }
 
       await awardAchievement('social_butterfly');

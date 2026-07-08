@@ -9,7 +9,7 @@ function SearchContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const urlQuery = searchParams.get("q") || "";
+  const urlQuery = searchParams?.get("q") || "";
 
   const [query, setQuery] = useState(urlQuery);
   const [results, setResults] = useState<any[]>([]);
@@ -38,9 +38,9 @@ function SearchContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || !pathname) return;
 
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParams?.toString() || "");
     params.set("q", query);
     router.push(`${pathname}?${params.toString()}`);
   };
@@ -48,7 +48,9 @@ function SearchContent() {
   // Функция быстрой очистки
   const handleClear = () => {
     setQuery("");
-    router.push(pathname); // Сбрасываем URL, что автоматически очистит результаты благодаря useEffect
+    if (pathname) {
+      router.push(pathname);
+    }
   };
 
   return (

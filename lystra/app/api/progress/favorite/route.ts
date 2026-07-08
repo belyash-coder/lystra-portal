@@ -1,43 +1,37 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-
 export async function POST(req: Request) {
-  // Инициализируем клиента только в момент запроса, чтобы не крашить сборку Vercel
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Авторизация через новую систему NextAuth
+    const session = await auth();
     
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    if (authError || !user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const userId = session.user.id;
 
     // 1. Получаем текущий профиль
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('xp, level')
-      .eq('id', user.id)
-      .single();
+    const profile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: { xp: true, level: true }
+    });
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-    // 2. Считаем, сколько всего жанров у юзера в избранном
-    const { count, error: countError } = await supabase
-      .from('favorite_genres')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id);
+    // 2. Считаем избранные жанры через универсальную таблицу collections
+    const totalFavorites = await prisma.collections.count({
+      where: { 
+        user_id: userId,
+        item_type: 'genre'
+      }
+    });
 
-    const totalFavorites = count || 0;
-
-    // 3. Выдаем +20 XP за каждое добавление в избранное
+    // 3. Выдаем +20 XP за добавление
     const currentXp = profile.xp || 0;
     const currentLevel = profile.level || 1;
     
@@ -45,20 +39,26 @@ export async function POST(req: Request) {
     const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
     const leveledUp = newLevel > currentLevel;
 
-    await supabase
-      .from('profiles')
-      .update({ xp: newXp, level: newLevel })
-      .eq('id', user.id);
+    await prisma.profiles.update({
+      where: { id: userId },
+      data: { xp: newXp, level: newLevel }
+    });
 
     // 4. Проверяем и выдаем ачивки ветки "Куратор"
     const newAchievements: string[] = [];
 
-    const awardAchievement = async (achievementId: string) => {
-      const { error } = await supabase
-        .from('user_achievements')
-        .insert({ user_id: user.id, achievement_id: achievementId });
-      
-      if (!error) newAchievements.push(achievementId);
+    const awardAchievement = async (achievementName: string) => {
+      try {
+        await prisma.achievements.create({
+          data: { 
+            user_id: userId, 
+            achievement_name: achievementName 
+          }
+        });
+        newAchievements.push(achievementName);
+      } catch (e) {
+        // Если ачивка уже есть, Prisma отменит запись из-за @@unique. Игнорируем ошибку.
+      }
     };
 
     if (totalFavorites >= 1) await awardAchievement('first_love');

@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Dices } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 
 export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Заглушка для счетчика уведомлений (таблицу notifications добавим позже)
+  const unreadCount = 0; 
   const pathname = usePathname();
-  const supabase = createClient();
 
   useEffect(() => {
     setMounted(true);
@@ -21,44 +21,6 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
-
-  useEffect(() => {
-    const fetchCount = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      const { count } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-        
-      setUnreadCount(count || 0);
-    };
-
-    fetchCount();
-
-    let channel: any;
-    const setupRealtime = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      channel = supabase
-        .channel(`mobile-menu-badge-${user.id}-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-          () => fetchCount() // Обновляем счетчик при любом изменении (в т.ч. когда они прочитаны)
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [supabase]);
 
   useEffect(() => {
     if (isOpen) {
@@ -99,12 +61,10 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
     <div className="md:hidden flex items-center">
       <button
         onPointerDown={(e) => {
-          // PointerDown срабатывает МГНОВЕННО при касании, игнорируя любые баги свайпов
           e.stopPropagation();
-          setIsOpen((prev) => !prev); // Используем prev, чтобы избежать багов двойного клика
+          setIsOpen((prev) => !prev);
         }}
         type="button"
-        // touch-none ЖЕСТКО запрещает браузеру думать, что ты хочешь скроллить, когда трогаешь кнопку
         className="text-neutral-300 hover:text-white focus:outline-none z-[10000] relative p-3 -mr-3 flex items-center justify-center min-w-[56px] min-h-[56px] select-none touch-none"
         style={{ WebkitTapHighlightColor: 'transparent' }}
         aria-label="Открыть меню"

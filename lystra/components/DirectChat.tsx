@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Smile, Minus, X, Loader2 } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 
@@ -21,15 +20,14 @@ interface DirectChatProps {
     username: string;
     avatar_url: string | null;
   };
-  initialMessages?: Message[]; // ИЗМЕНЕНО: теперь опционально
+  initialMessages?: Message[];
   onClose: () => void;
 }
 
 export function DirectChat({ currentUserId, targetProfile, initialMessages = [], onClose }: DirectChatProps) {
-  const supabase = createClient();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [newMessage, setNewMessage] = useState('');
-  const [isLoadingMessages, setIsLoadingMessages] = useState(initialMessages.length === 0);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
@@ -40,9 +38,6 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
   const inputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const isMinimizedRef = useRef(isMinimized);
-
-  // === ИЗМЕНЕНО: БЕЗОПАСНЫЙ ПОДХОД К СЧЕТЧИКУ (Защита от +2) ===
-  // Храним ID последнего полученного сообщения, чтобы не инкрементить счетчик дважды для одного и того же
   const lastProcessedMessageId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -52,26 +47,10 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
     }
   }, [isMinimized]);
 
-  // ИЗМЕНЕНО: Подгружаем сообщения, если их нет (для колокольчика)
+  // TODO: Вернуть логику загрузки истории через Prisma API
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (initialMessages.length > 0) return; // Если передали готовые — не грузим
-      
-      setIsLoadingMessages(true);
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${targetProfile.id}),and(sender_id.eq.${targetProfile.id},receiver_id.eq.${currentUserId})`)
-        .order('created_at', { ascending: true });
-      
-      if (data) {
-        setMessages(data as Message[]);
-      }
-      setIsLoadingMessages(false);
-    };
-
-    fetchHistory();
-  }, [currentUserId, targetProfile.id, initialMessages.length, supabase]);
+    // Временно отключено
+  }, [currentUserId, targetProfile.id, initialMessages.length]);
 
   const scrollToBottom = () => {
     if (!isMinimized) {
@@ -93,41 +72,11 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // === REALTIME СОКЕТ ===
+  // TODO: Настроить Realtime обновления (Polling или Socket.io) через новый бэкенд
   useEffect(() => {
-    const channel = supabase
-      .channel(`chat-${currentUserId}-${targetProfile.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          const incomingMessage = payload.new as Message;
-          
-          // Жесткая проверка: это точно сообщение от собеседника в этот чат?
-          if (incomingMessage.sender_id !== targetProfile.id || incomingMessage.receiver_id !== currentUserId) return;
-          
-          // БЕЗОПАСНЫЙ ФИКС СЧЕТЧИКА: не обрабатываем сообщение дважды
-          if (lastProcessedMessageId.current === incomingMessage.id) return;
-          lastProcessedMessageId.current = incomingMessage.id;
+    // Временно отключено
+  }, [currentUserId, targetProfile.id]);
 
-          // Звеним и вибрируем
-          if (typeof window !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(50);
-                
-          // Увеличиваем счетчик ТОЛЬКО если свернуто
-          if (isMinimizedRef.current) {
-            setUnreadCount(prevCount => prevCount + 1);
-          }
-
-          // Добавляем в конец списка
-          setMessages((prev) => [...prev, incomingMessage]);
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [currentUserId, targetProfile.id, supabase]);
-
-  // === ОТПРАВКА СООБЩЕНИЯ ===
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || isSending) return;
@@ -135,28 +84,25 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
     setIsSending(true);
     setShowEmojiPicker(false);
 
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
+    try {
+      // TODO: Заменить на fetch к /api/messages
+      const dummyMessage: Message = {
+        id: Date.now().toString(),
         sender_id: currentUserId,
         receiver_id: targetProfile.id,
         content: newMessage.trim(),
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      const sentMsg = data as Message;
-      // Мгновенно добавляем как прочитанное (для себя)
-      setMessages((prev) => [...prev, sentMsg]);
-      // Запоминаем ID, чтобы по сокету оно не пролетело как "непрочитанное от себя же"
-      lastProcessedMessageId.current = sentMsg.id;
+        created_at: new Date().toISOString()
+      };
+      
+      setMessages((prev) => [...prev, dummyMessage]);
+      lastProcessedMessageId.current = dummyMessage.id;
       setNewMessage('');
       setTimeout(() => inputRef.current?.focus(), 10);
-    } else {
+    } catch (error) {
       console.error('Ошибка отправки:', error);
+    } finally {
+      setIsSending(false);
     }
-    setIsSending(false);
   };
 
   const onEmojiClick = (emojiObject: any) => {
@@ -198,7 +144,7 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
                 </span>
               )}
             </h2>
-            <p className="text-xs text-[#34d399]">{isMinimized ? 'Свернуто' : 'Личный чат'}</p>
+            <p className="text-xs text-[#34d399]">{isMinimized ? 'Свернуто' : 'Личный чат (Офлайн режим)'}</p>
           </div>
         </div>
 
@@ -280,17 +226,17 @@ export function DirectChat({ currentUserId, targetProfile, initialMessages = [],
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Написать..."
-                disabled={isSending || isLoadingMessages}
-                className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-full pl-11 pr-12 py-2.5 text-sm text-white focus:outline-none focus:border-[#a78bfa] transition-colors"
+                placeholder="Чат временно отключен"
+                disabled={true} // Блокируем ввод пока нет бэкенда
+                className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-full pl-11 pr-12 py-2.5 text-sm text-white focus:outline-none focus:border-[#a78bfa] transition-colors opacity-50 cursor-not-allowed"
               />
               
               <button
                 type="submit"
-                disabled={!newMessage.trim() || isSending || isLoadingMessages}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-[#a78bfa] text-black rounded-full hover:bg-[#b8a1fa] disabled:opacity-50 disabled:bg-neutral-800 disabled:text-neutral-500 transition-all cursor-pointer"
+                disabled={true}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-[#a78bfa] text-black rounded-full hover:bg-[#b8a1fa] disabled:opacity-50 disabled:bg-neutral-800 disabled:text-neutral-500 transition-all cursor-not-allowed"
               >
-                {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Send className="w-3.5 h-3.5 ml-[-2px]" />}
+                <Send className="w-3.5 h-3.5 ml-[-2px]" />
               </button>
             </form>
           </div>

@@ -1,31 +1,31 @@
 'use server'
 
-import { createClient } from '../supabase/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 
 export async function toggleCollection(itemId: string, itemType: string, isAdded: boolean) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const session = await auth()
+  const user = session?.user
   
-  if (!user) return { error: 'Необходимо авторизоваться' }
+  if (!user?.id) return { error: 'Необходимо авторизоваться' }
 
-  if (isAdded) {
-    // Удаляем из коллекции
-    const { error } = await supabase
-      .from('collections')
-      .delete()
-      .match({ user_id: user.id, item_id: itemId, item_type: itemType })
+  try {
+    if (isAdded) {
+      // Удаляем из коллекции (используем deleteMany, так как ищем по составному ключу)
+      await prisma.collections.deleteMany({
+        where: { user_id: user.id, item_id: itemId, item_type: itemType }
+      })
+    } else {
+      // Добавляем в коллекцию
+      await prisma.collections.create({
+        data: { user_id: user.id, item_id: itemId, item_type: itemType }
+      })
+    }
 
-    if (error) return { error: error.message }
-  } else {
-    // Добавляем в коллекцию
-    const { error } = await supabase
-      .from('collections')
-      .insert({ user_id: user.id, item_id: itemId, item_type: itemType })
-
-    if (error) return { error: error.message }
+    revalidatePath(`/${itemType}/${itemId}`)
+    return { success: true }
+  } catch (error: any) {
+    return { error: error.message }
   }
-
-  revalidatePath(`/${itemType}/${itemId}`)
-  return { success: true }
 }

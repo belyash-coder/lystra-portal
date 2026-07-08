@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { createClient } from "@/utils/supabase/client";
 
 interface CustomAudioPlayerProps {
   src: string;
@@ -33,25 +32,9 @@ export default function CustomAudioPlayer({ src, initialDuration = 0, trackId }:
       console.log("Плеер: Таймер на 10 секунд запущен...");
 
       listenTimerRef.current = setTimeout(async () => {
-        console.log("Плеер: 10 секунд прошло! Стучимся в Supabase...");
-        try {
-          const supabase = createClient();
-          const { data: { user } } = await supabase.auth.getUser();
-
-          const { data, error } = await supabase.from('track_plays').insert({
-            track_id: String(trackId),
-            listener_id: user?.id || null
-          }).select();
-
-          if (error) {
-            console.error("Плеер: ОШИБКА БАЗЫ!", error.message);
-          } else {
-            console.log("Плеер: УСПЕХ!", data);
-            hasTrackedRef.current = true; 
-          }
-        } catch (error) {
-          console.error("Плеер: ОШИБКА КОДА:", error);
-        }
+        console.log("Плеер: 10 секунд прошло! (Логирование прослушиваний временно отключено)");
+        // TODO: Переписать на fetch('/api/track-plays', { method: 'POST' ... })
+        hasTrackedRef.current = true;
       }, 10000); 
     } else {
       if (listenTimerRef.current) {

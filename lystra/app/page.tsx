@@ -1,6 +1,6 @@
 import Link from "next/link";
 import StreamPlayer from "@/components/StreamPlayer";
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { Play, ExternalLink } from "lucide-react";
 import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 import { LikeButton } from '@/components/LikeButton'
@@ -15,8 +15,6 @@ export default async function HomePage({
 }: {
   searchParams: { genre?: string };
 }) {
-  const supabase = await createClient();
-  // Ждем параметры (в Next.js App Router лучше их резолвить, если версия выше 14)
   const params = await searchParams;
   const genre = params?.genre;
 
@@ -33,17 +31,15 @@ export default async function HomePage({
       "Classical": 98,
       "Alternative": 85,
       "Metal": 464,
-      "Indie": 85, // Deezer API группирует Indie с Alternative
-      "Ambient": 106, // Fallback на Electronic для мировых чартов
+      "Indie": 85,
+      "Ambient": 106,
       "Folk": 466
     };
-    // Если жанр выбран и есть в нашей карте — используем его ID, иначе 0 (все жанры)
     const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
     const deezerRes = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases`);
     const deezerData = await deezerRes.json();
     const rawReleases = deezerData.data?.slice(0, 8) || [];
 
-    // Дозапрашиваем жанры для каждого альбома индивидуально
     globalReleases = await Promise.all(
       rawReleases.map(async (album: any) => {
         try {
@@ -60,54 +56,17 @@ export default async function HomePage({
     console.error("Ошибка загрузки Deezer:", error);
   }
 
-  // 2. Получаем последние ТРЕКИ вместе с релизами и артистами (с фильтрацией)
-  let indieQuery = supabase
-    .from("tracks")
-    .select(`
-      id,
-      title,
-      audio_path,
-      duration,
-      releases!inner (
-        id,
-        cover_path,
-        genre,
-        artists (
-          stage_name
-        )
-      )
-    `)
-    .order("created_at", { ascending: false })
-    .limit(genre ? 10 : 8); // Увеличили лимит до 8 для красивой сетки
+  // 2. Заглушка для инди-треков (таблицы tracks и releases добавим в БД позже)
+  const indieTracks: any[] = [];
 
-  if (genre) {
-    // Ищем частичное совпадение жанра (ilike нечувствителен к регистру)
-    indieQuery = indieQuery.ilike('releases.genre', `%${genre}%`);
-  }
-
-  const { data: indieTracks } = await indieQuery;
-
-  // 3. Глобальная лента отзывов (С именами, лайками и КОММЕНТАРИЯМИ)
-  const { data: reviews, error: reviewsError } = await supabase
-    .from("reviews")
-    .select(`
-      *,
-      profiles!reviews_user_id_fkey (
-        username
-      ),
-      likes (
-        user_id
-      ),
-      comments (
-        count
-      )
-    `)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (reviewsError) {
-    console.error("❌ ОШИБКА СУПАБЕЙСА В ЛЕНТЕ:", reviewsError.message);
-  }
+  // 3. Глобальная лента отзывов через Prisma
+  const reviews = await prisma.reviews.findMany({
+    orderBy: { created_at: 'desc' },
+    take: 5,
+    include: {
+      profiles: { select: { username: true } }
+    }
+  });
 
   const getPublicUrl = (bucket: string, path: string) => {
     if (!path) return '';

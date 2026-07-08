@@ -1,85 +1,72 @@
-// app/api/progress/spin/route.ts
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 
-// Сервисный клиент для безопасной работы с БД со стороны сервера
 export async function POST(req: Request) {
   try {
-    // Сначала проверяем, существуют ли вообще ключи на сервере
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Ключи базы данных (Supabase) не найдены на сервере Vercel. Проверьте настройки Environment Variables.');
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Инициализируем клиента внутри try, чтобы в случае сбоя приложение получило понятный ответ
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
-    // 1. Верификация пользователя по токену
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const userId = session.user.id;
 
-    // 2. Читаем текущий прогресс
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('xp, level, total_spins')
-      .eq('id', user.id)
-      .single();
+    // 1. Читаем текущий прогресс, включая добавленный total_spins
+    const profile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: { xp: true, level: true, total_spins: true }
+    });
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
     const currentXp = profile.xp || 0;
-    const currentSpins = profile.total_spins || 0;
     const currentLevel = profile.level || 1;
+    const currentSpins = profile.total_spins || 0;
 
     const newXp = currentXp + 10;
-    const newSpins = currentSpins + 1;
     const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
     const leveledUp = newLevel > currentLevel;
+    const newSpins = currentSpins + 1;
 
-    // 3. Обновляем профиль
-    await supabase
-      .from('profiles')
-      .update({ xp: newXp, level: newLevel, total_spins: newSpins })
-      .eq('id', user.id);
+    // 2. Обновляем профиль (XP, Level и счетчик круток)
+    await prisma.profiles.update({
+      where: { id: userId },
+      data: { xp: newXp, level: newLevel, total_spins: newSpins }
+    });
 
-    // 4. Проверяем и выдаем ачивки
+    // 3. Проверяем и выдаем ачивки
     const newAchievements: string[] = [];
 
-    const awardAchievement = async (achievementId: string) => {
-      const { error } = await supabase
-        .from('user_achievements')
-        .insert({ user_id: user.id, achievement_id: achievementId });
-      
-      // Если ошибки нет, значит ачивка получена впервые (сработает constraint в БД)
-      if (!error) newAchievements.push(achievementId);
+    const awardAchievement = async (achievementName: string) => {
+      try {
+        await prisma.achievements.create({
+          data: { user_id: userId, achievement_name: achievementName }
+        });
+        newAchievements.push(achievementName);
+      } catch (e) {
+        // Если ошибка уникальности (ачивка уже есть) — игнорируем
+      }
     };
 
-    // "Проба пера"
+    // "Проба пера" (выдается всегда, БД сама отсечет дубликат)
     await awardAchievement('first_spin');
 
-    // "Ночная сова" (учитываем серверное время или можно пробрасывать таймзону юзера с клиента)
-    const currentHour = new Date().getHours();
-    if (currentHour >= 0 && currentHour < 6) {
-      await awardAchievement('night_owl');
-    }
-
-    // "Везунчик"
+    // "Счастливчик" (10 круток)
     if (newSpins >= 10) {
       await awardAchievement('lucky_ten');
     }
 
-    // "Мастер рулетки"
+    // "Мастер рулетки" (100 круток)
     if (newSpins >= 100) {
       await awardAchievement('spin_master');
+    }
+
+    // "Ночная сова" (с 00:00 до 06:00)
+    const currentHour = new Date().getHours();
+    if (currentHour >= 0 && currentHour < 6) {
+      await awardAchievement('night_owl');
     }
 
     return NextResponse.json({

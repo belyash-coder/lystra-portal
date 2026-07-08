@@ -1,36 +1,42 @@
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 import { ReviewsFeed } from '@/components/ReviewsFeed'
 
 export const revalidate = 0 // Отключаем кэш для максимальной актуальности ленты
 
 export default async function GlobalReviewsPage() {
-  const supabase = await createClient()
-
   // 1. Получаем сессию текущего пользователя и его роль
-  const { data: { user } } = await supabase.auth.getUser()
+  const session = await auth()
+  const userId = session?.user?.id
+  
   let currentUserRole: 'user' | 'moderator' | 'admin' = 'user'
   
-  if (user) {
-    const { data: currProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (currProfile?.role) {
-      currentUserRole = currProfile.role as 'user' | 'moderator' | 'admin'
-    }
+  if (userId) {
+    // Временно запрашиваем только id, так как поля role пока нет в схеме Prisma
+    const currProfile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    })
+    // Роль пока остается 'user' по умолчанию
   }
 
   // 2. Запрашиваем первые 20 отзывов со связью таблицы профилей авторов
-  const { data: reviewsData, error } = await supabase
-    .from('reviews')
-    .select('*, profiles!user_id(username, avatar_url, role)')
-    .order('created_at', { ascending: false })
-    .limit(20)
+  const reviewsData = await prisma.reviews.findMany({
+    take: 20,
+    orderBy: { created_at: 'desc' },
+    include: {
+      profiles: {
+        select: { username: true, avatar_url: true }
+      }
+    }
+  })
 
-  
-
-  const reviews = (reviewsData || []) as any[]
+  // Конвертируем BigInt в строку и маппим поля для клиента
+  const reviews = reviewsData.map((r: any) => ({
+    ...r,
+    id: r.id.toString(),
+    review_text: r.content // В Prisma поле обычно называется content
+  }))
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-6 md:p-12 font-sans">
@@ -49,10 +55,10 @@ export default async function GlobalReviewsPage() {
 
         <hr className="border-white/10" />
 
-        {/* Сетка фида рецензий (Client Component с пагинацией и Realtime) */}
+        {/* Сетка фида рецензий (Client Component с пагинацией) */}
         <ReviewsFeed 
           initialReviews={reviews} 
-          currentUserId={user?.id} 
+          currentUserId={userId} 
           currentUserRole={currentUserRole} 
         />
 

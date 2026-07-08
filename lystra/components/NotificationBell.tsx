@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, Heart, MessageSquare, UserPlus, Mail } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { useChat } from './ChatProvider';
 
@@ -16,11 +15,9 @@ interface Notification {
 }
 
 export function NotificationBell() {
-  const supabase = createClient();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   
-  // Добавили хранение текущего ID юзера для передачи в чат
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -34,64 +31,20 @@ export function NotificationBell() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
+    // TODO: Переписать на fetch к новому внутреннему API (напр. /api/notifications)
     const fetchNotifications = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      setCurrentUserId(user.id);
-
-      const { data } = await supabase
-        .from('notifications')
-        .select('id, type, notifier_username, related_id, is_read, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(15);
-
-      if (data) setNotifications(data);
+      // Временно отключено
     };
 
     fetchNotifications();
 
+    // TODO: Настроить Realtime через WebSocket или Polling
     const setupRealtime = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const channel = supabase
-        .channel(`user-notifications-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            const newNotif = payload.new as Notification;
-            const currentChat = activeChatRef.current;
-
-            // Если чат с этим человеком УЖЕ открыт — гасим уведомление (оно просто тихо падает в прочитанные)
-            if (newNotif.type === 'message' && currentChat?.profile.id === newNotif.related_id) {
-              setNotifications((prev) => [{ ...newNotif, is_read: true }, ...prev]);
-              supabase.from('notifications').update({ is_read: true }).eq('id', newNotif.id).then();
-            } else {
-              // Иначе показываем индикатор и звеним
-              setNotifications((prev) => [newNotif, ...prev]);
-              if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-                navigator.vibrate(100);
-              }
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      // Временно отключено
     };
 
     setupRealtime();
-  }, [supabase]); 
+  }, []); 
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -106,16 +59,9 @@ export function NotificationBell() {
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
 
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', user.id)
-      .eq('is_read', false);
+    // TODO: Отправлять POST запрос на API для обновления статуса прочитанности
   };
 
   const getNotificationDetails = (type: string, username: string) => {
@@ -128,7 +74,6 @@ export function NotificationBell() {
         return { icon: <MessageSquare className="w-4 h-4 text-[#a78bfa] fill-current" />, text: `@${username} ответил на ваш комментарий` };
       case 'follow':
         return { icon: <UserPlus className="w-4 h-4 text-amber-400" />, text: `@${username} подписался на вас` };
-      // ВОЗВРАЩАЕМ КРАСИВЫЙ ТЕКСТ ДЛЯ СООБЩЕНИЙ
       case 'message':
         return { icon: <Mail className="w-4 h-4 text-sky-400" />, text: `@${username} прислал вам сообщение` };
       default:
@@ -175,7 +120,6 @@ export function NotificationBell() {
                 const details = getNotificationDetails(notif.type, notif.notifier_username);
                 const isMessage = notif.type === 'message';
                 
-                // Если это сообщение — ставим пустую ссылку (перехватим клик ниже)
                 const linkHref = isMessage 
                   ? '#' 
                   : notif.type === 'follow' 
@@ -188,9 +132,6 @@ export function NotificationBell() {
                     href={linkHref}
                     onClick={(e) => {
                       setIsOpen(false);
-                      
-                      // МАГИЯ ЗДЕСЬ: Если кликнули на сообщение, предотвращаем переход
-                      // и сразу разворачиваем виджет чата поверх текущей страницы
                       if (isMessage && currentUserId) {
                         e.preventDefault(); 
                         openChat(
@@ -199,7 +140,7 @@ export function NotificationBell() {
                             username: notif.notifier_username, 
                             avatar_url: null 
                           },
-                          [], // Передаем пустой массив, компонент DirectChat сам подгрузит историю!
+                          [], 
                           currentUserId
                         );
                       }

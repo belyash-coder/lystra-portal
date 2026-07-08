@@ -21,7 +21,7 @@ export function CommentItem({ id, content, authorName, isOwner }: CommentProps) 
   // 1. Реальное сохранение (Редактирование)
   const handleSave = async () => {
     try {
-      await updateReviewComment(id, editValue, pathname)
+      await updateReviewComment(id, editValue, pathname || '')
       setIsEditing(false)
     } catch (error: any) {
       alert('Ошибка при сохранении: ' + error.message)
@@ -32,7 +32,7 @@ export function CommentItem({ id, content, authorName, isOwner }: CommentProps) 
   const handleDelete = async () => {
     if (confirm('Точно удалить комментарий?')) {
       try {
-        await deleteReviewComment(id, pathname)
+        await deleteReviewComment(id, pathname || '')
       } catch (error: any) {
         alert('Ошибка при удалении: ' + error.message)
       }

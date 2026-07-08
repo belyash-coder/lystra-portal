@@ -22,7 +22,7 @@ function AutoOpenLogic({ openChatFn, profile, messages, userId }: any) {
   
   useEffect(() => {
     // Если в URL есть параметр и мы еще не открывали чат
-    if (searchParams.get('chat') === 'open' && !hasTriggered.current) {
+    if (searchParams?.get('chat') === 'open' && !hasTriggered.current) {
       openChatFn(profile, messages, userId);
       hasTriggered.current = true; // Защелкиваем предохранитель
     }

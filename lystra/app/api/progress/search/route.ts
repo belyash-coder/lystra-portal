@@ -1,57 +1,55 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 
 export async function POST(req: Request) {
-  // Инициализируем клиента только в момент запроса, чтобы не крашить сборку Vercel
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Авторизация через NextAuth
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const userId = session.user.id;
 
-    // 1. Получаем текущий профиль
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('xp, level, total_searches')
-      .eq('id', user.id)
-      .single();
+    // 1. Получаем текущий профиль (включая счетчик total_searches)
+    const profile = await prisma.profiles.findUnique({
+      where: { id: userId },
+      select: { xp: true, level: true, total_searches: true }
+    });
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-    // 2. Обновляем счетчик поисков и XP
+    // 2. Обновляем XP и счетчик поисков
     const currentXp = profile.xp || 0;
     const currentLevel = profile.level || 1;
     const currentSearches = profile.total_searches || 0;
     
     const newXp = currentXp + 15; // +15 XP за успешный поиск
-    const newSearches = currentSearches + 1;
     const newLevel = Math.floor(Math.sqrt(newXp / 100)) + 1;
     const leveledUp = newLevel > currentLevel;
+    const newSearches = currentSearches + 1;
 
-    await supabase
-      .from('profiles')
-      .update({ xp: newXp, level: newLevel, total_searches: newSearches })
-      .eq('id', user.id);
+    await prisma.profiles.update({
+      where: { id: userId },
+      data: { xp: newXp, level: newLevel, total_searches: newSearches }
+    });
 
-    // 3. Проверяем ачивку "Следопыт"
+    // 3. Выдаем ачивку "Следопыт" при первой возможности
     const newAchievements: string[] = [];
 
-    if (newSearches >= 5) {
-      const { error } = await supabase
-        .from('user_achievements')
-        .insert({ user_id: user.id, achievement_id: 'explorer' });
-      
-      if (!error) newAchievements.push('explorer');
+    try {
+      await prisma.achievements.create({
+        data: { 
+          user_id: userId, 
+          achievement_name: 'explorer' 
+        }
+      });
+      newAchievements.push('explorer');
+    } catch (e) {
+      // Если ачивка уже получена, сработает уникальное ограничение базы, и мы просто проигнорируем ошибку
     }
 
     return NextResponse.json({

@@ -5,7 +5,8 @@ import AlbumTrackList from "@/components/AlbumTrackList";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import { AddToCollectionButton } from "@/components/AddToCollectionButton";
 import { ReviewForm } from "@/components/ReviewForm";
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { ReviewActions } from "@/components/ReviewActions";
 
 // Базовые интерфейсы для типизации ответа Deezer
@@ -65,64 +66,44 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  // 2. Работа с Supabase: проверка коллекции и загрузка отзывов
+  // 2. Работа с базой через Prisma: проверка коллекции и загрузка отзывов
   let isAddedToCollection = false;
   let albumReviews: any[] = [];
-  let titlesMap: Record<string, string> = {};
-  let currentUser: any = null; // Выносим пользователя в общую зону видимости
+  let currentUser: any = null;
   
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    currentUser = user; // Сохраняем данные авторизации
+    const session = await auth();
+    currentUser = session?.user;
     
-    if (user) {
-      const { data: collectionData } = await supabase
-        .from('collections')
-        .select('id')
-        .match({ user_id: user.id, item_id: id, item_type: 'album' })
-        .maybeSingle();
+    if (currentUser?.id) {
+      const collectionData = await prisma.collections.findFirst({
+        where: { user_id: currentUser.id, item_id: id, item_type: 'album' }
+      });
 
       if (collectionData) isAddedToCollection = true;
     }
 
-    // Загружаем отзывы (тянем статистику и active_title_id)
-    const { data: reviewsData, error: reviewsError } = await supabase
-      .from('reviews')
-      .select('*, profiles!user_id(username, avatar_url, active_title_id, user_stats(releases_count, reviews_count, comments_count)), review_likes(user_id), review_comments(id, content, created_at, user_id, parent_id, profiles!user_id(username, avatar_url))')
-      .eq('item_id', id)
-      .eq('item_type', 'album')
-      .order('created_at', { ascending: false });
-
-    if (reviewsError) {
-      console.error("Ошибка получения отзывов из Supabase:", reviewsError);
-    }
+    // Загружаем отзывы (лайки, комменты и детальную стату добавим в будущем)
+    const reviewsData = await prisma.reviews.findMany({
+      where: { item_id: id, item_type: 'album' },
+      orderBy: { created_at: 'desc' },
+      include: {
+        profiles: true
+      }
+    });
 
     if (reviewsData) {
-      albumReviews = reviewsData;
-      
-      // Безопасно собираем уникальные ID званий с учетом строгой типизации
-      const titleIds = albumReviews
-        .map(r => {
-          const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-          return p?.active_title_id;
-        })
-        .filter(Boolean) as string[];
-
-      const uniqueTitleIds = Array.from(new Set(titleIds));
-
-      if (uniqueTitleIds.length > 0) {
-        const { data: titlesData } = await supabase.from('achievements').select('id, name').in('id', uniqueTitleIds);
-        if (titlesData) {
-          titlesData.forEach(t => {
-            titlesMap[t.id] = t.name;
-          });
-        }
-      }
+      albumReviews = reviewsData.map((review: any) => ({
+        ...review,
+        id: review.id.toString(), // Next.js падает от BigInt, конвертируем в строку
+        review_text: review.content,
+        review_likes: [],
+        review_comments: []
+      }));
     }
     
   } catch (error) {
-    console.error("Ошибка подключения к Supabase:", error);
+    console.error("Ошибка подключения к БД:", error);
   }
 
   // 3. Запрашиваем дополнительные данные для сайдбара
@@ -231,29 +212,27 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
                   </div>
                 ) : (
                   albumReviews.map((review) => {
-                    const profileObj = Array.isArray(review.profiles) ? review.profiles[0] : review.profiles;
-                    const stats = profileObj?.user_stats;
-                    const statsObj = Array.isArray(stats) ? stats[0] : stats;
-                    const points = (statsObj?.releases_count || 0) + (statsObj?.reviews_count || 0) + (statsObj?.comments_count || 0);
+                    const profileObj = review.profiles;
+                    
+                    // Временно берем XP напрямую, пока не создадим отдельную таблицу со статистикой
+                    const points = profileObj?.xp || 0; 
 
-                    // Рамки (полностью перенесены из профиля, но чуть адаптированы под маленький размер аватара)
                     let frameClass = "border-2 border-transparent group-hover:border-[#a78bfa]/50"; 
                     if (points >= 300) {
                       frameClass = "p-1 bg-gradient-to-tr from-[#a78bfa] via-[#34d399] to-[#a78bfa] shadow-[0_0_0_2px_#121212,0_0_0_4px_#a78bfa]";
                     } else if (points >= 100) {
                       frameClass = "border-[3px] border-[#34d399] shadow-[0_0_10px_rgba(52,211,153,0.3)]";
-          0.5       } else if (points >= 28) {
+                    } else if (points >= 28) {
                       frameClass = "border-2 border-[#a78bfa] ring-2 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]";
                     }
 
-                    // Звание берем из таблицы achievements строго по ключу
-                    const titleId = profileObj?.active_title_id;
-                    const titleName = typeof titleId === 'string' ? titlesMap[titleId] : null;
+                    // Звание берем напрямую из профиля
+                    const titleName = profileObj?.title || 'Новичок';
 
-                    // Считаем реальные лайки и комментарии из привязанных таблиц
-                    const likesCount = Array.isArray(review.review_likes) ? review.review_likes.length : 0;
-                    const commentsCount = Array.isArray(review.review_comments) ? review.review_comments.length : 0;
-                    const hasLiked = Array.isArray(review.review_likes) ? review.review_likes.some((l: any) => l.user_id === currentUser?.id) : false;
+                    // Заглушки для лайков и комментов
+                    const likesCount = 0;
+                    const commentsCount = 0;
+                    const hasLiked = false;
 
                     return (
                       <div key={review.id} className="bg-gradient-to-br from-white/5 to-transparent p-4 md:p-5 rounded-2xl border border-white/10 transition-all duration-300 flex flex-col gap-3 relative backdrop-blur-sm">

@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import LoginLink from '@/components/LoginLink';
-import { signOut } from '@/app/login/actions';
+import { getSession, signOut } from 'next-auth/react';
 import { Bell, Heart, MessageSquare, UserPlus, Mail, User } from 'lucide-react';
 import { useChat } from '@/components/ChatProvider';
 import { usePathname } from 'next/navigation';
@@ -20,10 +19,8 @@ interface Notification {
 }
 
 export default function AuthButton({ isMobile = false }: { isMobile?: boolean } = {}) {
-  const supabase = createClient();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [userStats, setUserStats] = useState<any>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,94 +37,25 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
-    const initAuthAndNotifications = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
+    const initAuth = async () => {
+      try {
+        const session = await getSession();
+        if (session?.user) {
+          setUser(session.user);
+          setProfile({
+            username: session.user.name || 'Пользователь',
+            avatar_url: session.user.image || null
+          });
+        }
+      } catch (error) {
+        console.error("Ошибка загрузки сессии:", error);
+      } finally {
         setLoading(false);
-        return;
-      }
-      setUser(authUser);
-
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('id', authUser.id)
-        .single();
-      setProfile(prof);
-
-      // Загружаем статистику для рамок по правильному полю user_id
-      const { data: stats } = await supabase
-        .from('user_stats')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .maybeSingle();
-      setUserStats(stats);
-
-      const { data: notifs } = await supabase
-        .from('notifications')
-        .select('id, type, notifier_username, related_id, is_read, created_at')
-        .eq('user_id', authUser.id)
-        .order('created_at', { ascending: false })
-        .limit(15);
-      if (notifs) setNotifications(notifs);
-      
-      setLoading(false);
-    };
-
-    initAuthAndNotifications();
-
-    let channel: any;
-    const setupRealtime = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-
-      channel = supabase
-        .channel(`user-notifications-${authUser.id}-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${authUser.id}`,
-          },
-          (payload) => {
-            const newNotif = payload.new as Notification;
-            const currentChat = activeChatRef.current;
-
-            if (newNotif.type === 'message' && currentChat?.profile.id === newNotif.related_id) {
-              setNotifications((prev) => [{ ...newNotif, is_read: true }, ...prev]);
-              supabase.from('notifications').update({ is_read: true }).eq('id', newNotif.id).then();
-            } else {
-              setNotifications((prev) => [newNotif, ...prev]);
-              if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-                navigator.vibrate(100);
-              }
-            }
-          }
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    if (loading) return;
-
-    const checkAuthSync = async () => {
-      const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
-      if (currentAuthUser?.id !== user?.id) {
-        window.location.reload();
       }
     };
 
-    checkAuthSync();
-  }, [pathname, loading, user?.id, supabase]);
+    initAuth();
+  }, [pathname]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -141,17 +69,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
-
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return;
-
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', authUser.id)
-      .eq('is_read', false);
+    // В будущем здесь будет запрос к нашему API на базе Prisma
   };
 
   const getNotificationDetails = (type: string, username: string) => {
@@ -171,8 +90,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
     }
   };
 
-  // Вычисляем баллы и рамки
-  const points = (userStats?.releases_count || 0) + (userStats?.reviews_count || 0) + (userStats?.comments_count || 0);
+  // Временно ставим 0 баллов, пока не подключим API статистики
+  const points = 0;
   
   let frameClass = "border-2 border-transparent group-hover:border-[#a78bfa]/50"; 
   if (points >= 300) {
@@ -341,10 +260,7 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
 
           <div className={`p-3 ${isMobile ? 'pt-6' : 'bg-[#121212]'} flex justify-end`}>
             <button 
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.href = '/';
-              }}
+              onClick={() => signOut({ callbackUrl: '/' })}
               className="w-full text-center text-xs text-neutral-400 hover:text-red-400 border border-red-500/30 hover:border-red-500/60 px-3 py-2 rounded-xl transition-all active:scale-95 font-medium"
             >
               Выйти

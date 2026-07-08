@@ -1,11 +1,54 @@
 import Link from 'next/link'
-import { signup } from '../login/actions'
+import { redirect } from 'next/navigation'
+import { prisma } from '../../lib/prisma'
+import bcrypt from 'bcryptjs'
 
 export default async function SignupPage(props: {
   searchParams: Promise<{ message?: string; next?: string }>
 }) {
   const searchParams = await props.searchParams
   const nextUrl = searchParams?.next || '/'
+
+  async function registerUser(formData: FormData) {
+    "use server"
+    
+    const username = formData.get('username') as string
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const confirmPassword = formData.get('confirmPassword') as string
+    const next = formData.get('next') as string || '/'
+
+    if (password !== confirmPassword) {
+      redirect(`/signup?message=Пароли не совпадают&next=${next}`)
+    }
+
+    // Проверяем, свободен ли email и username
+    const existingUser = await prisma.profiles.findFirst({
+      where: {
+        OR: [{ email }, { username }]
+      }
+    })
+
+    if (existingUser) {
+      redirect(`/signup?message=Пользователь с таким email или именем уже существует&next=${next}`)
+    }
+
+    // Шифруем пароль перед сохранением
+    const password_hash = await bcrypt.hash(password, 10)
+
+    // Создаем запись в базе
+    await prisma.profiles.create({
+      data: {
+        username,
+        email,
+        password_hash,
+        // Поля xp, level и title заполнятся автоматически дефолтными значениями из схемы
+      }
+    })
+
+    // Перенаправляем на страницу входа с сообщением об успехе
+    redirect(`/login?success=Аккаунт успешно создан. Теперь вы можете войти.&next=${next}`)
+  }
 
   return (
     <div className="min-h-screen bg-[#121212] flex flex-col justify-center items-center p-4">
@@ -14,7 +57,7 @@ export default async function SignupPage(props: {
           Создание аккаунта
         </h1>
         
-        <form action={signup} className="flex flex-col gap-4">
+        <form action={registerUser} className="flex flex-col gap-4">
           <input type="hidden" name="next" value={nextUrl} />
 
           <div className="flex flex-col gap-2">
