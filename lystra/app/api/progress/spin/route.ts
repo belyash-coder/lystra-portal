@@ -3,17 +3,40 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import jwt from 'jsonwebtoken';
+
+const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    let userId: string | null = null;
+
+    // 1. Сначала пытаемся прочитать мобильный токен (Bearer)
+    const authHeader = req.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded: any = jwt.verify(token, SECRET);
+        userId = decoded.id;
+      } catch (e) {
+        // Если токен неверный, просто идем дальше (возможно, это запрос с веб-сайта)
+      }
+    }
+
+    // 2. Если мобильного токена нет, проверяем куки веб-портала (NextAuth)
+    if (!userId) {
+      const session = await auth();
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    }
+
+    // 3. Если юзер не найден ни там, ни там — блокируем
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const userId = session.user.id;
 
-    // 1. Читаем текущий прогресс, включая добавленный total_spins
+    // 4. Читаем текущий прогресс, включая добавленный total_spins
     const profile = await prisma.profiles.findUnique({
       where: { id: userId },
       select: { xp: true, level: true, total_spins: true }
@@ -30,19 +53,20 @@ export async function POST(req: Request) {
     const leveledUp = newLevel > currentLevel;
     const newSpins = currentSpins + 1;
 
-    // 2. Обновляем профиль (XP, Level и счетчик круток)
+    // 5. Обновляем профиль (XP, Level и счетчик круток)
     await prisma.profiles.update({
       where: { id: userId },
       data: { xp: newXp, level: newLevel, total_spins: newSpins }
     });
 
-    // 3. Проверяем и выдаем ачивки
+    // 6. Проверяем и выдаем ачивки
     const newAchievements: string[] = [];
 
     const awardAchievement = async (achievementName: string) => {
       try {
         await prisma.achievements.create({
-          data: { user_id: userId, achievement_name: achievementName }
+          // Обязательно указываем "as string", так как TypeScript знает, что userId уже не null
+          data: { user_id: userId as string, achievement_name: achievementName }
         });
         newAchievements.push(achievementName);
       } catch (e) {
