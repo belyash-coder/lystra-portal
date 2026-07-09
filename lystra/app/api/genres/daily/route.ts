@@ -29,7 +29,10 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({ genre: currentGenre, history });
+    return NextResponse.json(
+      { genre: currentGenre, history },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   } catch (error) {
     console.error('Ошибка получения жанра дня:', error);
     return NextResponse.json({ genre: 'Phonk', history: [] }, { status: 500 });
