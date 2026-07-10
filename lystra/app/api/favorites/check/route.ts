@@ -9,14 +9,14 @@ const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 async function getUserId(req: Request) {
   let userId: string | null = null;
   const authHeader = req.headers.get('authorization');
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const decoded: any = jwt.verify(authHeader.split(' ')[1], SECRET);
       userId = decoded.id;
     } catch (e) {}
   }
-  
+
   if (!userId) {
     const session = await auth();
     if (session?.user?.id) userId = session.user.id;
@@ -34,15 +34,25 @@ export async function GET(req: Request) {
 
     if (!genre) return NextResponse.json({ isFavorited: false });
 
-    const count = await prisma.collections.count({
-      where: { 
-        user_id: userId,
-        item_type: 'genre',
-        item_id: genre
-      }
-    });
+    // Проверяем в новой таблице
+    let countColls = 0;
+    try {
+      countColls = await prisma.collections.count({
+        where: { user_id: userId, item_type: 'genre', item_id: genre }
+      });
+    } catch(e) {}
 
-    return NextResponse.json({ isFavorited: count > 0 });
+    // Проверяем в старой таблице
+    let countOld = 0;
+    try {
+      countOld = await (prisma as any).favorites.count({
+        where: { user_id: userId, genre_name: genre }
+      });
+    } catch(e) {}
+
+    return NextResponse.json({ isFavorited: countColls > 0 || countOld > 0 }, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' }
+    });
   } catch (error) {
     return NextResponse.json({ isFavorited: false });
   }
