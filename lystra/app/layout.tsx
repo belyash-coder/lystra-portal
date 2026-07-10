@@ -5,7 +5,9 @@ import "./globals.css";
 import AuthButton from "@/components/AuthButton";
 import MobileMenu from "@/components/MobileMenu";
 import { NotificationBell } from "@/components/NotificationBell";
-import { ChatProvider } from "@/components/ChatProvider"; // <-- 1. ДОБАВИЛИ ИМПОРТ
+import { ChatProvider } from "@/components/ChatProvider";
+import GlobalPlayer from "@/components/GlobalPlayer"; 
+import SearchNavLink from "@/components/SearchNavLink"; // <-- ИМПОРТ УМНОЙ ССЫЛКИ ПОИСКА
 
 export const metadata: Metadata = {
   title: "LYSTRA",
@@ -27,7 +29,6 @@ export default function RootLayout({
       </head>
       <body className="bg-[#121212] text-white min-h-screen flex flex-col font-sans overflow-x-hidden">
         
-        {/* 2. ОБЕРНУЛИ ВЕСЬ КОНТЕНТ В ПРОВАЙДЕР */}
         <ChatProvider>
           
           {/* ГЛОБАЛЬНАЯ ШАПКА НАВИГАЦИИ */}
@@ -50,7 +51,7 @@ export default function RootLayout({
               <div className="flex items-center gap-4 md:gap-6">
                 <nav className="hidden md:flex items-center gap-6">
                   <Link href="/" className="text-sm font-medium text-neutral-300 hover:text-white transition-colors">Главная</Link>
-                  <Link href="/search" className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors">Поиск</Link>
+                  <SearchNavLink className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors" />
                   <Link href="/reviews" className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors">Отзывы и рецензии</Link>
                   <Link href="/about" className="text-sm font-medium text-neutral-300 hover:text-[#34d399] transition-colors">О нас</Link>
                 </nav>
@@ -67,9 +68,12 @@ export default function RootLayout({
           </header>
 
           {/* ОСНОВНОЙ КОНТЕНТ СТРАНИЦ */}
-          <div className="flex-grow">
+          <div className="flex-grow pb-24"> {/* Добавили pb-24, чтобы контент не прятался под плеером */}
             {children}
           </div>
+
+          {/* ГЛОБАЛЬНЫЙ ПЛЕЕР */}
+          <GlobalPlayer />
 
         </ChatProvider>
       </body>

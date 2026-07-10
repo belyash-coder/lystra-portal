@@ -1,20 +1,42 @@
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import jwt from 'jsonwebtoken';
+
+export const dynamic = 'force-dynamic';
+
+const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 
 export async function POST(req: Request) {
   try {
-    // Авторизация через NextAuth
-    const session = await auth();
-    if (!session?.user?.id) {
+    let userId: string | null = null;
+
+    // 1. Сначала пытаемся прочитать мобильный токен (Bearer)
+    const authHeader = req.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded: any = jwt.verify(token, SECRET);
+        userId = decoded.id;
+      } catch (e) {
+        // Если токен неверный, просто идем дальше (возможно, это запрос с веб-сайта)
+      }
+    }
+
+    // 2. Если мобильного токена нет, проверяем куки веб-портала (NextAuth)
+    if (!userId) {
+      const session = await auth();
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    }
+
+    // 3. Если юзер не найден ни там, ни там — блокируем
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const userId = session.user.id;
 
-    // 1. Получаем текущий профиль (включая счетчик total_searches)
+    // 4. Получаем текущий профиль (включая счетчик total_searches)
     const profile = await prisma.profiles.findUnique({
       where: { id: userId },
       select: { xp: true, level: true, total_searches: true }
@@ -22,7 +44,7 @@ export async function POST(req: Request) {
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-    // 2. Обновляем XP и счетчик поисков
+    // 5. Обновляем XP и счетчик поисков
     const currentXp = profile.xp || 0;
     const currentLevel = profile.level || 1;
     const currentSearches = profile.total_searches || 0;
@@ -37,13 +59,13 @@ export async function POST(req: Request) {
       data: { xp: newXp, level: newLevel, total_searches: newSearches }
     });
 
-    // 3. Выдаем ачивку "Следопыт" при первой возможности
+    // 6. Выдаем ачивку "Следопыт" при первой возможности
     const newAchievements: string[] = [];
 
     try {
       await prisma.achievements.create({
         data: { 
-          user_id: userId, 
+          user_id: userId as string, 
           achievement_name: 'explorer' 
         }
       });

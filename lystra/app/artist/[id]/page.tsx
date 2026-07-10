@@ -120,20 +120,27 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
   </h2>
   <div className="space-y-2">
     {topTracks.map((track, index) => (
-      <div 
-        key={track.id} 
-        className="flex items-center justify-between p-3 rounded-xl hover:bg-neutral-900/60 transition-colors group"
-      >
-        <div className="flex items-center gap-4 min-w-0">
-          <span className="w-4 text-center text-xs text-neutral-500">{index + 1}</span>
-          <p className="font-medium truncate text-sm group-hover:text-[#a78bfa] transition-colors">
-            {track.title}
-          </p>
-        </div>
-        {/* Добавили initialDuration={30} */}
-        <CustomAudioPlayer src={track.preview} initialDuration={30} />
-      </div>
-    ))}
+          <div 
+            key={track.id} 
+            className="flex items-center justify-between p-3 rounded-xl hover:bg-neutral-900/60 transition-colors group"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <span className="w-4 text-center text-xs text-neutral-500">{index + 1}</span>
+              <p className="font-medium truncate text-sm group-hover:text-[#a78bfa] transition-colors">
+                {track.title}
+              </p>
+            </div>
+            <CustomAudioPlayer 
+              track={{
+                id: track.id.toString(),
+                title: track.title,
+                url: track.preview,
+                artist: artistInfo.name,
+                coverUrl: (track as any).album?.cover_xl || (track as any).album?.cover_medium || artistInfo.picture_xl
+              }} 
+            />
+          </div>
+        ))}
   </div>
 </section>
 

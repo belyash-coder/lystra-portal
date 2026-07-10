@@ -3,11 +3,26 @@
 import { useState } from "react";
 import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 
-export default function AlbumTrackList({ tracks }: { tracks: any[] }) {
+interface AlbumTrackListProps {
+  tracks: any[];
+  artistName?: string;
+  coverUrl?: string;
+}
+
+export default function AlbumTrackList({ tracks, artistName = "Неизвестный исполнитель", coverUrl }: AlbumTrackListProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const limit = 3;
   const hasMore = tracks.length > limit;
+
+  // Вспомогательная функция для генерации объекта трека
+  const getTrackObject = (track: any) => ({
+    id: track.id.toString(),
+    title: track.title,
+    url: track.preview,
+    artist: track.artist?.name || artistName,
+    coverUrl: coverUrl
+  });
 
   return (
     <div className="w-full mb-16">
@@ -18,7 +33,7 @@ export default function AlbumTrackList({ tracks }: { tracks: any[] }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        {/* Всегда видимые первые треки (до лимита) */}
+        {/* Всегда видимые первые треки */}
         {tracks.slice(0, limit).map((track, index) => (
           <div
             key={track.id}
@@ -30,14 +45,14 @@ export default function AlbumTrackList({ tracks }: { tracks: any[] }) {
             </span>
 
             {track.preview ? (
-              <CustomAudioPlayer src={track.preview} initialDuration={30} />
+              <CustomAudioPlayer track={getTrackObject(track)} />
             ) : (
               <span className="text-neutral-600 text-xs italic">Нет превью</span>
             )}
           </div>
         ))}
 
-        {/* Обертка для остальных треков с плавной анимацией */}
+        {/* Скрытые треки */}
         {hasMore && (
           <div 
             className={`grid transition-all duration-300 ease-in-out md:grid-rows-[1fr] md:opacity-100 ${
@@ -56,7 +71,7 @@ export default function AlbumTrackList({ tracks }: { tracks: any[] }) {
                   </span>
 
                   {track.preview ? (
-                    <CustomAudioPlayer src={track.preview} initialDuration={30} />
+                    <CustomAudioPlayer track={getTrackObject(track)} />
                   ) : (
                     <span className="text-neutral-600 text-xs italic">Нет превью</span>
                   )}
@@ -67,7 +82,6 @@ export default function AlbumTrackList({ tracks }: { tracks: any[] }) {
         )}
       </div>
 
-      {/* Кнопка показывается только на мобилках (md:hidden) и если треков больше 3 */}
       {hasMore && (
         <div className="mt-4 flex justify-center md:hidden">
           <button

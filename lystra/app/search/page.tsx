@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSearchStore } from "@/lib/store/useSearchStore"; // <-- ИМПОРТ НАШЕГО СТОРА
 
 function SearchContent() {
   const router = useRouter();
@@ -11,24 +12,51 @@ function SearchContent() {
 
   const urlQuery = searchParams?.get("q") || "";
 
-  const [query, setQuery] = useState(urlQuery);
-  const [results, setResults] = useState<any[]>([]);
+  const { query: savedQuery, results: savedResults, scrollPosition, setSearchData, setScrollPosition, clearSearch } = useSearchStore();
+
+  const [query, setQuery] = useState(() => {
+    if (urlQuery && urlQuery !== savedQuery) return urlQuery;
+    return savedQuery || urlQuery;
+  });
+
+  const [results, setResults] = useState<any[]>(() => {
+    if (urlQuery && urlQuery !== savedQuery) return [];
+    return savedResults;
+  });
+  
   const [loading, setLoading] = useState(false);
 
+  // Восстановление позиции скролла
   useEffect(() => {
-    if (urlQuery.trim()) {
-      performSearch(urlQuery);
-    } else {
-      setResults([]);
+    if (results.length > 0 && scrollPosition > 0) {
+      // Увеличили таймаут и добавили behavior: 'instant', чтобы наверняка дождаться рендера карточек
+      const timeoutId = setTimeout(() => {
+        window.scrollTo({ top: scrollPosition, left: 0, behavior: 'instant' });
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [urlQuery]);
+  }, [results, scrollPosition]);
+
+  useEffect(() => {
+    if (urlQuery && urlQuery !== savedQuery) {
+      setQuery(urlQuery);
+      performSearch(urlQuery);
+    } else if (!urlQuery && savedQuery) {
+      // КРИТИЧЕСКИ ВАЖНО: { scroll: false } запрещает Next.js сбрасывать скролл наверх при обновлении URL
+      router.replace(`${pathname}?q=${encodeURIComponent(savedQuery)}`, { scroll: false });
+    }
+  }, [urlQuery, savedQuery, pathname, router]);
 
   const performSearch = async (searchQuery: string) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
-      setResults(data.data?.slice(0, 12) || []);
+      const newResults = data.data?.slice(0, 12) || [];
+      
+      setResults(newResults);
+      setSearchData(searchQuery, newResults);
+      setScrollPosition(0); // При новом поиске сбрасываем скролл
     } catch (error) {
       console.error("Ошибка поиска:", error);
     } finally {
@@ -45,9 +73,11 @@ function SearchContent() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Функция быстрой очистки
   const handleClear = () => {
     setQuery("");
+    setResults([]);
+    clearSearch();
+    window.scrollTo(0, 0); // Возвращаем скролл наверх
     if (pathname) {
       router.push(pathname);
     }
@@ -60,19 +90,15 @@ function SearchContent() {
       </h1>
 
       <form onSubmit={handleSearch} className="w-full flex flex-col sm:flex-row gap-4">
-        {/* Обертка для инпута и крестика */}
         <div className="relative flex-1">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Например: Radiohead, Burial, Скриптонит..."
-            // focus:placeholder-transparent прячет текст при установке курсора
-            // Увеличили pr-14, чтобы текст не залезал под крестик
             className="w-full bg-neutral-900/80 border-2 border-neutral-800 rounded-full pl-8 pr-14 py-4 text-white focus:outline-none focus:border-[#a78bfa] transition-colors shadow-lg text-lg placeholder-neutral-500 focus:placeholder-transparent"
           />
           
-          {/* Крестик очистки появляется только если в поле есть текст */}
           {query.length > 0 && (
             <button
               type="button"
@@ -120,6 +146,7 @@ function SearchContent() {
           <Link
             href={`/artist/${artist.id}`}
             key={artist.id}
+            onClick={() => setScrollPosition(window.scrollY)} // <--- Запоминаем скролл прямо перед переходом
             className="bg-neutral-900/40 p-6 rounded-3xl flex flex-col items-center gap-4 border border-neutral-800 hover:border-[#a78bfa]/50 hover:bg-neutral-900/80 transition-all group cursor-pointer"
           >
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-transparent group-hover:border-[#a78bfa] transition-all duration-300 shadow-xl">

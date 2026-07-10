@@ -3,22 +3,46 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import jwt from 'jsonwebtoken';
+
+const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    let userId: string | null = null;
+
+    // 1. Сначала пытаемся прочитать мобильный токен (Bearer)
+    const authHeader = req.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded: any = jwt.verify(token, SECRET);
+        userId = decoded.id;
+      } catch (e) {
+        // Если токен неверный, просто идем дальше (возможно, это запрос с веб-сайта)
+      }
+    }
+
+    // 2. Если мобильного токена нет, проверяем куки веб-портала (NextAuth)
+    if (!userId) {
+      const session = await auth();
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    }
+
+    // 3. Если юзер не найден ни там, ни там — блокируем
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const userId = session.user.id;
     const body = await req.json();
     const action = body.action; // 'share' или 'add_friend'
     const friend_id = body.friend_id;
 
     if (!action) return NextResponse.json({ error: 'Action is required' }, { status: 400 });
 
-    // 1. Получаем текущий профиль
+    // 4. Получаем текущий профиль
     const profile = await prisma.profiles.findUnique({
       where: { id: userId },
       select: { xp: true, level: true }
@@ -26,7 +50,7 @@ export async function POST(req: Request) {
 
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-    // 2. Выдаем XP (+15 XP за социальные взаимодействия)
+    // 5. Выдаем XP (+15 XP за социальные взаимодействия)
     const currentXp = profile.xp || 0;
     const currentLevel = profile.level || 1;
     
@@ -39,13 +63,13 @@ export async function POST(req: Request) {
       data: { xp: newXp, level: newLevel }
     });
 
-    // 3. Проверяем и выдаем социальные ачивки и связи
+    // 6. Проверяем и выдаем социальные ачивки и связи
     const newAchievements: string[] = [];
 
     const awardAchievement = async (achievementName: string) => {
       try {
         await prisma.achievements.create({
-          data: { user_id: userId, achievement_name: achievementName }
+          data: { user_id: userId as string, achievement_name: achievementName }
         });
         newAchievements.push(achievementName);
       } catch (e) {
@@ -60,7 +84,7 @@ export async function POST(req: Request) {
 
       try {
         await prisma.friends.create({
-          data: { user_id: userId, friend_id: friend_id } // status по умолчанию будет "pending"
+          data: { user_id: userId as string, friend_id: friend_id } // status по умолчанию будет "pending"
         });
       } catch (e) {
         // Ошибка уникальности, если они уже друзья или заявка уже отправлена

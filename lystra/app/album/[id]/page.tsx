@@ -188,7 +188,11 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Список треков с плеером */}
-          <AlbumTrackList tracks={album.tracks?.data || []} />
+          <AlbumTrackList 
+            tracks={album.tracks?.data || []} 
+            artistName={album.artist.name}
+            coverUrl={album.cover_xl}
+          />
 
       {/* Форма написания рецензии и список отзывов */}
           <div className="w-full scroll-mt-32" id="reviews">
