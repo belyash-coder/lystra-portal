@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -23,7 +23,8 @@ interface ReviewCommentsProps {
   children?: React.ReactNode;
 }
 
-export function ReviewComments({ reviewId, initialCommentsCount = 0, children }: ReviewCommentsProps) {
+// 1. Основная логика с useSearchParams
+function ReviewCommentsContent({ reviewId, initialCommentsCount = 0, children }: ReviewCommentsProps) {
   const searchParams = useSearchParams();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +40,7 @@ export function ReviewComments({ reviewId, initialCommentsCount = 0, children }:
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Безопасное обращение к searchParams (с подстраховкой на null)
+    // Безопасное обращение к searchParams
     const reviewIdFromUrl = searchParams?.get('review_id');
     
     if (reviewIdFromUrl === reviewId) {
@@ -253,5 +254,24 @@ export function ReviewComments({ reviewId, initialCommentsCount = 0, children }:
         </div>
       )}
     </div>
+  );
+}
+
+// 2. Главный экспорт-обертка
+export function ReviewComments(props: ReviewCommentsProps) {
+  return (
+    <Suspense fallback={
+      <div className="w-full mt-3">
+        <div className="flex items-center justify-end gap-4">
+          <div className="flex items-center gap-1.5 text-neutral-500">
+            <MessageSquare className="w-4 h-4" />
+            <span className="text-xs font-semibold font-mono select-none">{props.initialCommentsCount || 0}</span>
+          </div>
+          {props.children}
+        </div>
+      </div>
+    }>
+      <ReviewCommentsContent {...props} />
+    </Suspense>
   );
 }

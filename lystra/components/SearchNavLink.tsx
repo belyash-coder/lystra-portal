@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function SearchNavLink({ className, onClick }: { className?: string; onClick?: () => void }) {
+// 1. Выносим основную логику с параметрами в отдельный компонент
+function SearchNavLinkContent({ className, onClick }: { className?: string; onClick?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [lastRoute, setLastRoute] = useState("/search");
@@ -31,5 +32,14 @@ export default function SearchNavLink({ className, onClick }: { className?: stri
     <Link href={targetHref} className={className} onClick={onClick}>
       Поиск
     </Link>
+  );
+}
+
+// 2. Главный экспорт теперь просто оборачивает контент в Suspense
+export default function SearchNavLink({ className, onClick }: { className?: string; onClick?: () => void }) {
+  return (
+    <Suspense fallback={<span className={className}>Поиск</span>}>
+      <SearchNavLinkContent className={className} onClick={onClick} />
+    </Suspense>
   );
 }
