@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     
     // Читаем всё, подстраховываясь на любые названия колонок
     allFavorites.push(...newFavs.map((f: any) => ({ 
-      id: f.id, 
+      id: f.id?.toString(), 
       genre_name: f.item_id || f.genre_name || f.title || f.name || f.genre 
     })));
 
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
         where: { user_id: targetUserId }
       });
       allFavorites.push(...oldFavs.map((f: any) => ({ 
-        id: f.id, 
+        id: f.id?.toString(), 
         genre_name: f.genre_name || f.item_id 
       })));
     } catch (e) {
