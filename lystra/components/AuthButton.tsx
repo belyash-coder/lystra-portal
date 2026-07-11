@@ -170,31 +170,54 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
 
       {(isOpen || isMobile) && (
         <div className={isMobile ? "w-full flex flex-col" : "absolute right-0 mt-3 w-80 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"}>
-          <div className={`p-3 ${isMobile ? '' : 'border-b border-neutral-800 bg-[#121212]'} flex flex-col gap-1.5`}>
-            <Link 
-              href="/profile" 
-              onClick={() => !isMobile && setIsOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-xl text-sm font-bold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all border border-neutral-800/50 hover:border-[#a78bfa]/30"
-            >
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 text-[#a78bfa]">
-                <User className="w-4 h-4" />
-              </div>
-              <div className="flex flex-col flex-1">
-                <span>Профиль</span>
-                <span className="text-neutral-500 text-xs font-medium">Ваши данные и статистика</span>
-              </div>
-              <span className="text-neutral-500 text-xs">→</span>
-            </Link>
-            
-            <Link 
-              href="/following" 
-              onClick={() => !isMobile && setIsOpen(false)}
-              className="flex items-center justify-between p-2 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-white/[0.04] transition-all"
-            >
-              <span>Мои подписки</span>
-              <UserPlus className="w-4 h-4 text-neutral-500" />
-            </Link>
+          <div className={`${isMobile ? 'flex flex-col gap-1' : 'p-3 border-b border-neutral-800 bg-[#121212] flex flex-col gap-1.5'}`}>
+            {isMobile ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-neutral-300 hover:bg-white/5 hover:text-white active:bg-white/10 transition-all"
+                >
+                  <User className="w-5 h-5 text-neutral-500" />
+                  Профиль
+                </Link>
+                <Link
+                  href="/following"
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-neutral-300 hover:bg-white/5 hover:text-white active:bg-white/10 transition-all"
+                >
+                  <UserPlus className="w-5 h-5 text-neutral-500" />
+                  Мои подписки
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/profile"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 p-3 rounded-xl text-sm font-bold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all border border-neutral-800/50 hover:border-[#a78bfa]/30"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 text-[#a78bfa]">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <span>Профиль</span>
+                    <span className="text-neutral-500 text-xs font-medium">Ваши данные и статистика</span>
+                  </div>
+                  <span className="text-neutral-500 text-xs">→</span>
+                </Link>
+
+                <Link
+                  href="/following"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center justify-between p-2 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-white/[0.04] transition-all"
+                >
+                  <span>Мои подписки</span>
+                  <UserPlus className="w-4 h-4 text-neutral-500" />
+                </Link>
+              </>
+            )}
           </div>
+
+          {isMobile && <hr className="border-neutral-900 my-4" />}
 
           <div className={`p-3 ${isMobile ? '' : 'border-b border-neutral-800 max-h-64'} overflow-y-auto custom-scrollbar divide-y divide-neutral-900`}>
             <div className="flex justify-between items-center px-2 pb-2">
