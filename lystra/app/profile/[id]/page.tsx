@@ -56,9 +56,10 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
 
   // 3. Параллельно запрашиваем остальные данные
   // Заменяем missing таблицу follows на friends
-  const [reviewsResult, collectionsResult, followersCount, followingCount] = await Promise.all([
+  const [reviewsResult, collectionsResult, listenLaterResult, followersCount, followingCount] = await Promise.all([
     prisma.reviews.findMany({ where: { user_id: targetProfileId }, orderBy: { created_at: 'desc' } }),
-    prisma.collections.findMany({ where: { user_id: targetProfileId, item_type: 'album' }, orderBy: { created_at: 'desc' } }),
+    prisma.collections.findMany({ where: { user_id: targetProfileId, item_type: 'album', list_type: 'collection' }, orderBy: { created_at: 'desc' } }),
+    prisma.collections.findMany({ where: { user_id: targetProfileId, list_type: 'listen_later' }, orderBy: { created_at: 'desc' } }),
     prisma.friends.count({ where: { friend_id: targetProfileId } }),
     prisma.friends.count({ where: { user_id: targetProfileId } })
   ]);
@@ -143,6 +144,55 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
       }
     })
   ).then(results => results.filter(Boolean)) as FavoriteAlbum[];
+
+  // "Хочу послушать" может содержать и мировые альбомы (Deezer), и релизы
+  // независимой сцены (наша БД) — разрешаем каждый по своему источнику.
+  const listenLaterReleaseIds = listenLaterResult
+    .filter(item => item.item_type === 'release')
+    .map(item => item.item_id);
+
+  const listenLaterReleases = listenLaterReleaseIds.length
+    ? await prisma.releases.findMany({
+        where: { id: { in: listenLaterReleaseIds } },
+        include: { artists: true }
+      })
+    : [];
+
+  const listenLaterItems = (await Promise.all(
+    listenLaterResult.map(async (item) => {
+      if (item.item_type === 'release') {
+        const release = listenLaterReleases.find(r => r.id === item.item_id);
+        if (!release) return null;
+        return {
+          id: item.id.toString(),
+          itemId: item.item_id,
+          itemType: 'release' as const,
+          href: `/release/${release.id}`,
+          title: release.title,
+          artist: release.artists.stage_name,
+          cover_url: release.cover_path,
+        };
+      }
+
+      try {
+        const res = await fetch(`https://api.deezer.com/album/${item.item_id}`);
+        if (!res.ok) return null;
+        const albumData = await res.json();
+        if (albumData.error) return null;
+        return {
+          id: item.id.toString(),
+          itemId: item.item_id,
+          itemType: 'album' as const,
+          href: `/album/${item.item_id}`,
+          title: albumData.title,
+          artist: albumData.artist?.name,
+          cover_url: albumData.cover_medium,
+        };
+      } catch (err) {
+        return null;
+      }
+    })
+  )).filter(Boolean) as { id: string; itemId: string; itemType: 'album' | 'release'; href: string; title: string; artist: string; cover_url: string | null }[];
 
   const avgRating = safeReviews.length
     ? (safeReviews.reduce((acc, curr) => acc + curr.rating, 0) / safeReviews.length).toFixed(1)
@@ -351,6 +401,62 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
                   <div className="flex flex-col items-center gap-1.5 text-[#34d399] font-bold group-hover:text-[#6ee7b7] transition-colors text-center text-sm md:text-base">
                     <span>Все релизы</span>
                     <span className="text-xs font-normal text-neutral-400">({favoriteAlbums.length})</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-1 group-hover:translate-x-1 transition-transform">
+                      <path d="M5 12h14"></path>
+                      <path d="m12 5 7 7-7 7"></path>
+                    </svg>
+                  </div>
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+
+        <hr className="border-white/10" />
+
+        <section>
+          <div className="flex justify-between items-end mb-6">
+            <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-sky-400"></span>
+              Хочу послушать
+            </h2>
+          </div>
+
+          {listenLaterItems.length === 0 ? (
+            <div className="bg-white/5 border border-white/5 border-dashed p-6 md:p-8 rounded-xl text-center flex flex-col items-center justify-center gap-3">
+              <p className="text-sm md:text-base text-gray-500">Список пуст.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+              {listenLaterItems.slice(0, 5).map((item) => (
+                <div key={item.id} className="group relative">
+                  {isOwner && (
+                    <RemoveFromCollectionButton itemId={item.itemId} itemType={item.itemType} listType="listen_later" />
+                  )}
+                  <Link href={item.href} className="block cursor-pointer">
+                    <div className="aspect-square bg-neutral-800 rounded-xl overflow-hidden relative border border-white/5 group-hover:border-sky-400/50 transition-all duration-300 shadow-lg group-hover:shadow-[0_8px_20px_rgba(56,189,248,0.15)] z-10">
+                      {item.cover_url ? (
+                        <Image src={item.cover_url} alt={item.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" unoptimized />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-neutral-600 text-xs">Нет обложки</div>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <h3 className="text-xs md:text-sm font-bold text-white truncate group-hover:text-sky-400 transition-colors">{item.title}</h3>
+                      <p className="text-[10px] md:text-xs text-neutral-400 truncate">{item.artist}</p>
+                    </div>
+                  </Link>
+                </div>
+              ))}
+
+              {listenLaterItems.length > 5 && (
+                <Link
+                  href={`/profile/${profile?.username || profile?.id}/listen-later`}
+                  className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-sky-400/10 to-transparent border border-sky-400/20 hover:border-sky-400/50 hover:shadow-[0_8px_24px_rgba(56,189,248,0.15)] rounded-xl cursor-pointer group transition-all duration-300 aspect-square"
+                >
+                  <div className="flex flex-col items-center gap-1.5 text-sky-400 font-bold group-hover:text-sky-300 transition-colors text-center text-sm md:text-base">
+                    <span>Все</span>
+                    <span className="text-xs font-normal text-neutral-400">({listenLaterItems.length})</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mt-1 group-hover:translate-x-1 transition-transform">
                       <path d="M5 12h14"></path>
                       <path d="m12 5 7 7-7 7"></path>

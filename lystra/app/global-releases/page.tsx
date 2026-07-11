@@ -14,21 +14,29 @@ export default async function GlobalReleasesPage({
 
   let releases: any[] = [];
   try {
+    // Deezer покрывает не все жанры из нашего фильтра (Experimental, Punk, World,
+    // Acoustic, Devotional, Country отсутствуют в его редакционных категориях) —
+    // для непокрытых используем "все жанры" (id 0) вместо угадывания ID.
     const deezerGenreMap: Record<string, number> = {
       "Electronic": 106,
       "Rock": 152,
-      "Hip-Hop": 116,
-      "Pop": 132,
-      "R&B": 165,
-      "Jazz": 129,
-      "Classical": 98,
-      "Alternative": 85,
       "Metal": 464,
-      "Indie": 85, 
-      "Ambient": 106, 
-      "Folk": 466
+      "Alternative": 85,
+      "Hip-Hop/Rap": 116,
+      "Folk": 466,
+      "Pop": 132,
+      "Ambient": 106,
+      "Soundtrack": 173,
+      "Jazz": 129,
+      "Funk": 169,
+      "R&B/Soul": 165,
+      "Classical": 98,
+      "Reggae": 144,
+      "Blues": 153,
+      "Latin": 197,
     };
-    
+
+
     // Если жанр выбран — используем его ID, иначе 0 (все жанры)
     const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
     

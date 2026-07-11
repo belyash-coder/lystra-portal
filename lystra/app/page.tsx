@@ -21,19 +21,26 @@ export default async function HomePage({
   // 1. Мировые новинки из Deezer (с маппингом жанров)
   let globalReleases: any[] = [];
   try {
+    // Deezer покрывает не все жанры из нашего фильтра (Experimental, Punk, World,
+    // Acoustic, Devotional, Country отсутствуют в его редакционных категориях) —
+    // для непокрытых используем "все жанры" (id 0) вместо угадывания ID.
     const deezerGenreMap: Record<string, number> = {
       "Electronic": 106,
       "Rock": 152,
-      "Hip-Hop": 116,
-      "Pop": 132,
-      "R&B": 165,
-      "Jazz": 129,
-      "Classical": 98,
-      "Alternative": 85,
       "Metal": 464,
-      "Indie": 85,
+      "Alternative": 85,
+      "Hip-Hop/Rap": 116,
+      "Folk": 466,
+      "Pop": 132,
       "Ambient": 106,
-      "Folk": 466
+      "Soundtrack": 173,
+      "Jazz": 129,
+      "Funk": 169,
+      "R&B/Soul": 165,
+      "Classical": 98,
+      "Reggae": 144,
+      "Blues": 153,
+      "Latin": 197,
     };
     const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
     const deezerRes = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases`);
@@ -124,12 +131,7 @@ export default async function HomePage({
                     {globalReleases.map((album: any) => (
                       <Link href={`/album/${album.id}`} key={album.id} className="group cursor-pointer block">
                         <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
-                          <img src={album.cover_medium} alt={album.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
-                              <Play className="w-6 h-6 ml-1" fill="currentColor" />
-                            </div>
-                          </div>
+                          <img src={album.cover_medium} alt={album.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
                         </div>
                         <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] transition-colors">{album.title}</h3>
                         <p className="text-xs text-neutral-400 truncate">{album.artist.name}</p>

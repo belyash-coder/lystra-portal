@@ -4,7 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { Dices } from 'lucide-react';
+import { Home, Search, MessageSquare, Info } from 'lucide-react';
+
+const NAV_ITEMS = [
+  { href: '/', label: 'Главная', icon: Home },
+  { href: '/search', label: 'Поиск', icon: Search },
+  { href: '/reviews', label: 'Отзывы и рецензии', icon: MessageSquare },
+  { href: '/about', label: 'О нас', icon: Info },
+];
 
 export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,19 +44,20 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
         isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
     >
-      <nav className="flex flex-col gap-6 text-lg font-medium mt-4">
-        <Link href="/" className="text-neutral-300 hover:text-white active:opacity-60 transition-all">Главная</Link>
-        <Link href="/search" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Поиск</Link>
-        <Link href="/following" className="text-neutral-300 hover:text-[#34d399] active:opacity-60 transition-all">Подписки</Link>
-        <Link href="/reviews" className="text-neutral-300 hover:text-[#a78bfa] active:opacity-60 transition-all">Отзывы и рецензии</Link>
-        <Link href="/about" className="text-neutral-300 hover:text-[#34d399] active:opacity-60 transition-all">О нас</Link>
-        
-        <Link href="/discover" className="flex items-center justify-center gap-2 text-[#121212] font-bold bg-gradient-to-r from-[#a78bfa] to-[#34d399] px-4 py-3 rounded-xl hover:scale-[1.02] active:scale-95 transition-transform shadow-[0_0_15px_rgba(52,211,153,0.2)]">
-          <Dices className="w-5 h-5" /> Random Genre
-        </Link>
+      <nav className="flex flex-col gap-1">
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-neutral-300 hover:bg-white/5 hover:text-white active:bg-white/10 transition-all"
+          >
+            <Icon className="w-5 h-5 text-neutral-500" />
+            {label}
+          </Link>
+        ))}
       </nav>
 
-      <hr className="border-neutral-900 my-6" />
+      <hr className="border-neutral-900 my-4" />
 
       <div className="flex flex-col w-full">
          {authNode}

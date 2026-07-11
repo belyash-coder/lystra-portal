@@ -4,6 +4,7 @@ import Link from "next/link";
 import AlbumTrackList from "@/components/AlbumTrackList";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import { AddToCollectionButton } from "@/components/AddToCollectionButton";
+import { AddToListenLaterButton } from "@/components/AddToListenLaterButton";
 import { ReviewForm } from "@/components/ReviewForm";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -68,19 +69,26 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
 
   // 2. Работа с базой через Prisma: проверка коллекции и загрузка отзывов
   let isAddedToCollection = false;
+  let isAddedToListenLater = false;
   let albumReviews: any[] = [];
   let currentUser: any = null;
-  
+
   try {
     const session = await auth();
     currentUser = session?.user;
-    
+
     if (currentUser?.id) {
-      const collectionData = await prisma.collections.findFirst({
-        where: { user_id: currentUser.id, item_id: id, item_type: 'album' }
-      });
+      const [collectionData, listenLaterData] = await Promise.all([
+        prisma.collections.findFirst({
+          where: { user_id: currentUser.id, item_id: id, item_type: 'album', list_type: 'collection' }
+        }),
+        prisma.collections.findFirst({
+          where: { user_id: currentUser.id, item_id: id, item_type: 'album', list_type: 'listen_later' }
+        }),
+      ]);
 
       if (collectionData) isAddedToCollection = true;
+      if (listenLaterData) isAddedToListenLater = true;
     }
 
     // Загружаем отзывы (лайки, комменты и детальную стату добавим в будущем)
@@ -170,12 +178,19 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
           
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
             {/* Кнопка добавления в коллекцию */}
-            <AddToCollectionButton 
-              itemId={id} 
-              itemType="album" 
-              initialAdded={isAddedToCollection} 
+            <AddToCollectionButton
+              itemId={id}
+              itemType="album"
+              initialAdded={isAddedToCollection}
             />
-            
+
+            {/* Кнопка "Хочу послушать" */}
+            <AddToListenLaterButton
+              itemId={id}
+              itemType="album"
+              initialAdded={isAddedToListenLater}
+            />
+
             {/* Якорная ссылка к рецензиям (Скрыта на мобильных) */}
             <a 
               href="#reviews"

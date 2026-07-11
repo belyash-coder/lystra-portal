@@ -2,16 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import TagPicker from './TagPicker';
 
 const AVAILABLE_GENRES = [
-  'Electronic', 'Rock', 'Hip-Hop', 'Pop', 'R&B', 
-  'Jazz', 'Classical', 'Alternative', 'Metal', 
-  'Indie', 'Ambient', 'Folk'
+  'Electronic', 'Rock', 'Metal', 'Alternative', 'Hip-Hop/Rap', 'Experimental',
+  'Punk', 'Folk', 'Pop', 'Ambient', 'Soundtrack', 'World', 'Jazz', 'Acoustic',
+  'Funk', 'R&B/Soul', 'Devotional', 'Classical', 'Reggae', 'Country', 'Blues', 'Latin'
 ];
 
 export default function AddReleaseForm() {
   const [url, setUrl] = useState('');
   const [genre, setGenre] = useState(AVAILABLE_GENRES[0]);
+  const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -25,7 +27,7 @@ export default function AddReleaseForm() {
       const res = await fetch('/api/parse-release', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, genre }),
+        body: JSON.stringify({ url, genre, tags }),
       });
 
       const data = await res.json();
@@ -75,6 +77,8 @@ export default function AddReleaseForm() {
             ))}
           </select>
         </div>
+
+        <TagPicker selectedTags={tags} onChange={setTags} />
 
         <button
           type="submit"

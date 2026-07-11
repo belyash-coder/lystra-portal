@@ -4,7 +4,16 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
-    const { url, genre } = await request.json();
+    const { url, genre, tags: rawTags } = await request.json();
+
+    const tags = Array.isArray(rawTags)
+      ? Array.from(new Set(
+          rawTags
+            .filter((t: unknown): t is string => typeof t === 'string')
+            .map((t: string) => t.trim().toLowerCase())
+            .filter(Boolean)
+        )).slice(0, 8)
+      : [];
 
     // Защита: проверяем, авторизован ли пользователь через NextAuth
     const session = await auth();
@@ -81,6 +90,7 @@ export async function POST(request: Request) {
       data: {
         title,
         genre,
+        tags,
         cover_path: coverUrl || null,
         artist_id: artist.id,
         user_id: session.user.id as string,
