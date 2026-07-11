@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
@@ -69,13 +70,32 @@ export async function POST(request: Request) {
       audioMarkerPath = url;
     }
 
-    // ВНИМАНИЕ: Таблицы artists, releases и tracks удалены из schema.prisma!
-    // Прямая запись в БД отключена до принятия продуктового решения о возврате этих моделей.
-    console.warn(`[Parse Release] Данные получены: ${title} от ${artistName}, но таблицы в БД отсутствуют.`);
+    if (!title) {
+      return NextResponse.json({ error: 'Не удалось распознать данные релиза по ссылке' }, { status: 400 });
+    }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Ссылка успешно обработана (без сохранения в БД).' 
+    const artist = (await prisma.artists.findFirst({ where: { stage_name: artistName } }))
+      ?? (await prisma.artists.create({ data: { stage_name: artistName } }));
+
+    const release = await prisma.releases.create({
+      data: {
+        title,
+        genre,
+        cover_path: coverUrl || null,
+        artist_id: artist.id,
+        user_id: session.user.id as string,
+        tracks: {
+          create: {
+            title,
+            audio_path: audioMarkerPath,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      releaseId: release.id,
     });
 
   } catch (error: any) {

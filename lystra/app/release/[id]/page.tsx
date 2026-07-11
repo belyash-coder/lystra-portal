@@ -13,18 +13,14 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
   const resolvedParams = await params;
   const { id } = resolvedParams;
 
-  // ВАЖНО: Таблица releases была удалена из БД (формат Студии закрыт). 
-  // Возвращаем заглушку, чтобы не сломать верстку, пока вы не переведете 
-  // получение релизов на внешнее API (например, Deezer/Spotify).
-  const release = {
-    id: id,
-    title: 'Релиз не найден в БД',
-    genre: 'Неизвестно',
-    release_type: 'album',
-    cover_path: null,
-    artist_id: 'dummy_artist_id',
-    artists: { stage_name: 'Студия закрыта' }
-  };
+  const release = await prisma.releases.findUnique({
+    where: { id },
+    include: { artists: true },
+  });
+
+  if (!release) {
+    notFound();
+  }
 
   // Получаем отзывы к этому релизу из нашей Prisma БД
   const reviewsData = await prisma.reviews.findMany({
@@ -50,32 +46,35 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
       <section className="flex flex-col md:flex-row gap-8 mb-12">
         {/* Обложка */}
         <div className="w-64 h-64 bg-zinc-800 rounded-2xl overflow-hidden shrink-0 shadow-lg shadow-[#a78bfa]/10">
-           <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm text-center p-4">
-             Обложка недоступна <br/>(БД обновлена)
-           </div>
+          {release.cover_path ? (
+            <img src={release.cover_path} alt={release.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm text-center p-4">
+              Обложка недоступна
+            </div>
+          )}
         </div>
-        
+
         {/* Информация */}
         <div className="flex flex-col justify-end">
           <span className="text-[#a78bfa] text-sm uppercase tracking-widest font-semibold mb-2">
-            {release.release_type}
+            Независимая сцена
           </span>
           <h1 className="text-5xl font-bold mb-4">{release.title}</h1>
           <div className="flex items-center gap-4 mb-8">
             <p className="text-xl text-zinc-400">
-              Артист: <span className="text-white">{release.artists.stage_name}</span> • Жанр: {release.genre}
+              Артист: <span className="text-white">{release.artists.stage_name}</span>{release.genre ? <> • Жанр: {release.genre}</> : null}
             </p>
-            {/* Кнопка подписки на артиста временно отключена (нет таблицы artists) */}
           </div>
-          
+
           {/* Форма оценки и отзыва */}
           <div className="mt-4 max-w-xl">
-            <ReviewForm 
+            <ReviewForm
               itemId={release.id}
               itemType="album"
               itemTitle={release.title}
               itemArtist={release.artists.stage_name}
-              itemCover=""
+              itemCover={release.cover_path || ""}
             />
           </div>
         </div>

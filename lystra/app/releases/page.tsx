@@ -1,6 +1,7 @@
 import GenreSidebar from "@/components/GenreSidebar";
 import Link from "next/link";
 import IndieReleasesGrid from "@/components/IndieReleasesGrid";
+import { prisma } from "@/lib/prisma";
 
 export const revalidate = 0;
 
@@ -12,10 +13,15 @@ export default async function AllReleasesPage({
   const params = await searchParams;
   const genre = params?.genre;
 
-  // ВАЖНО: Таблицы tracks, releases и artists были удалены из БД.
-  // Возвращаем пустой массив, чтобы не сломать сетку релизов (IndieReleasesGrid), 
-  // пока вы не переведете получение музыки на внешнее API.
-  const tracks: any[] = [];
+  const tracks = await prisma.tracks.findMany({
+    where: genre ? { releases: { genre: { contains: genre, mode: 'insensitive' } } } : undefined,
+    orderBy: { created_at: 'desc' },
+    include: {
+      releases: {
+        include: { artists: true },
+      },
+    },
+  });
 
   return (
     <div className="min-h-screen bg-[#121212] text-white py-8 md:py-12">
