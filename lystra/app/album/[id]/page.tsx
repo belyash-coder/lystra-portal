@@ -188,9 +188,10 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Список треков с плеером */}
-          <AlbumTrackList 
-            tracks={album.tracks?.data || []} 
+          <AlbumTrackList
+            tracks={album.tracks?.data || []}
             artistName={album.artist.name}
+            artistId={album.artist.id}
             coverUrl={album.cover_xl}
           />
 

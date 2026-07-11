@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePlayerStore } from "@/lib/store/usePlayerStore";
 
 export default function GlobalPlayer() {
@@ -123,9 +124,18 @@ export default function GlobalPlayer() {
           <span className="text-white font-medium truncate">
             {currentTrack.title}
           </span>
-          <span className="text-neutral-400 text-sm truncate">
-            {loadError ? "Ошибка загрузки трека" : currentTrack.artist}
-          </span>
+          {loadError ? (
+            <span className="text-neutral-400 text-sm truncate">Ошибка загрузки трека</span>
+          ) : currentTrack.artistId ? (
+            <Link
+              href={`/artist/${currentTrack.artistId}`}
+              className="text-neutral-400 text-sm truncate hover:text-white hover:underline w-fit"
+            >
+              {currentTrack.artist}
+            </Link>
+          ) : (
+            <span className="text-neutral-400 text-sm truncate">{currentTrack.artist}</span>
+          )}
         </div>
       </div>
 
