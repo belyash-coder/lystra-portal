@@ -114,7 +114,7 @@ export default function GlobalPlayer() {
   // Если трек не выбран, плеер полностью скрывается с экрана
   if (!currentTrack) return null;
 
-  const renderArtistName = (className: string) => {
+  const renderArtistName = (className: string, collapseOnNavigate = false) => {
     if (loadError) {
       return <span className={className}>Ошибка загрузки трека</span>;
     }
@@ -122,7 +122,15 @@ export default function GlobalPlayer() {
       return (
         <Link
           href={`/artist/${currentTrack.artistId}`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // В фуллскрин-режиме плеер перекрывает весь экран, поэтому без
+            // сворачивания переход на страницу артиста незаметен пользователю.
+            if (collapseOnNavigate) {
+              setIsMobileExpanded(false);
+              setIsQueueOpen(false);
+            }
+          }}
           className={`${className} hover:text-white hover:underline w-fit`}
         >
           {currentTrack.artist}
@@ -225,7 +233,7 @@ export default function GlobalPlayer() {
 
               <div className="flex flex-col overflow-hidden mb-6">
                 <span className="text-white font-bold text-xl truncate">{currentTrack.title}</span>
-                {renderArtistName("text-neutral-400 text-base truncate")}
+                {renderArtistName("text-neutral-400 text-base truncate", true)}
               </div>
 
               <div className="flex flex-col gap-2 mb-6">
