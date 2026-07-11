@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Filter, X } from "lucide-react";
 
 const GENRES = [
-  "Electronic", "Rock", "Hip-Hop", "Pop", "R&B", "Jazz", 
-  "Classical", "Alternative", "Metal", "Indie", "Ambient", "Folk"
+  "Electronic", "Rock", "Metal", "Alternative", "Hip-Hop/Rap", "Experimental",
+  "Punk", "Folk", "Pop", "Ambient", "Soundtrack", "World", "Jazz", "Acoustic",
+  "Funk", "R&B/Soul", "Devotional", "Classical", "Reggae", "Country", "Blues", "Latin"
 ];
 
 export default function GenreSidebar({ 

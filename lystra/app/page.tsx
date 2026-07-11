@@ -21,19 +21,20 @@ export default async function HomePage({
   // 1. Мировые новинки из Deezer (с маппингом жанров)
   let globalReleases: any[] = [];
   try {
+    // Deezer покрывает не все жанры из нашего фильтра — для непокрытых используем
+    // "все жанры" (id 0) вместо угадывания несуществующего ID.
     const deezerGenreMap: Record<string, number> = {
       "Electronic": 106,
       "Rock": 152,
-      "Hip-Hop": 116,
-      "Pop": 132,
-      "R&B": 165,
-      "Jazz": 129,
-      "Classical": 98,
-      "Alternative": 85,
       "Metal": 464,
-      "Indie": 85,
+      "Alternative": 85,
+      "Hip-Hop/Rap": 116,
+      "Folk": 466,
+      "Pop": 132,
       "Ambient": 106,
-      "Folk": 466
+      "Jazz": 129,
+      "R&B/Soul": 165,
+      "Classical": 98,
     };
     const deezerId = genre && deezerGenreMap[genre] ? deezerGenreMap[genre] : 0;
     const deezerRes = await fetch(`https://api.deezer.com/editorial/${deezerId}/releases`);
