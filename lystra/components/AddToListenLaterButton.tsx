@@ -9,7 +9,7 @@ interface Props {
   initialAdded: boolean
 }
 
-export function AddToCollectionButton({ itemId, itemType, initialAdded }: Props) {
+export function AddToListenLaterButton({ itemId, itemType, initialAdded }: Props) {
   const [isAdded, setIsAdded] = useState(initialAdded)
   const [isPending, startTransition] = useTransition()
 
@@ -17,9 +17,9 @@ export function AddToCollectionButton({ itemId, itemType, initialAdded }: Props)
     startTransition(async () => {
       // Оптимистичный апдейт интерфейса (сразу меняем кнопку, не дожидаясь ответа)
       setIsAdded(!isAdded)
-      
-      const res = await toggleCollection(itemId, itemType, isAdded)
-      
+
+      const res = await toggleCollection(itemId, itemType, isAdded, 'listen_later')
+
       if (res?.error) {
         // Если сервер вернул ошибку, откатываем визуальное состояние обратно
         setIsAdded(isAdded)
@@ -32,13 +32,17 @@ export function AddToCollectionButton({ itemId, itemType, initialAdded }: Props)
     <button
       onClick={handleToggle}
       disabled={isPending}
-      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 border cursor-pointer ${
-        isAdded 
-          ? 'bg-[#a78bfa] text-[#121212] border-[#a78bfa] hover:bg-opacity-90' 
-          : 'bg-transparent text-[#a78bfa] border-[#a78bfa] hover:bg-[#a78bfa] hover:text-[#121212]'
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 border cursor-pointer ${
+        isAdded
+          ? 'bg-[#34d399] text-[#121212] border-[#34d399] hover:bg-opacity-90'
+          : 'bg-transparent text-[#34d399] border-[#34d399] hover:bg-[#34d399] hover:text-[#121212]'
       } disabled:opacity-50`}
     >
-      {isPending ? 'Синхронизация...' : isAdded ? 'В коллекции' : 'Добавить в коллекцию'}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 6v6l4 2" />
+      </svg>
+      {isPending ? 'Синхронизация...' : isAdded ? 'В списке "Послушать позже"' : 'Хочу послушать'}
     </button>
   )
 }

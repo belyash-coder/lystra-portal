@@ -36,9 +36,10 @@ export default async function FullCollectionPage({ params }: { params: Promise<{
 
   // Запрашиваем ВСЕ альбомы пользователя
   const collections = await prisma.collections.findMany({
-    where: { 
+    where: {
       user_id: profile.id,
-      item_type: 'album'
+      item_type: 'album',
+      list_type: 'collection'
     },
     orderBy: { created_at: 'desc' }
   });

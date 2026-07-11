@@ -5,6 +5,8 @@ import { LikeButton } from '@/components/LikeButton';
 import { ReviewComments } from '@/components/ReviewComments';
 import { ReviewForm } from '@/components/ReviewForm';
 import { FollowArtistButton } from '@/components/FollowArtistButton';
+import { AddToCollectionButton } from '@/components/AddToCollectionButton';
+import { AddToListenLaterButton } from '@/components/AddToListenLaterButton';
 
 export default async function ReleasePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -20,6 +22,23 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   if (!release) {
     notFound();
+  }
+
+  let isAddedToCollection = false;
+  let isAddedToListenLater = false;
+
+  if (user?.id) {
+    const [collectionData, listenLaterData] = await Promise.all([
+      prisma.collections.findFirst({
+        where: { user_id: user.id, item_id: id, item_type: 'release', list_type: 'collection' }
+      }),
+      prisma.collections.findFirst({
+        where: { user_id: user.id, item_id: id, item_type: 'release', list_type: 'listen_later' }
+      }),
+    ]);
+
+    if (collectionData) isAddedToCollection = true;
+    if (listenLaterData) isAddedToListenLater = true;
   }
 
   // Получаем отзывы к этому релизу из нашей Prisma БД
@@ -79,6 +98,19 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
               ))}
             </div>
           )}
+
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <AddToCollectionButton
+              itemId={release.id}
+              itemType="release"
+              initialAdded={isAddedToCollection}
+            />
+            <AddToListenLaterButton
+              itemId={release.id}
+              itemType="release"
+              initialAdded={isAddedToListenLater}
+            />
+          </div>
 
           {/* Форма оценки и отзыва */}
           <div className="mt-4 max-w-xl">
