@@ -127,6 +127,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
           title: t.title,
           url: t.preview,
           artist: artistInfo.name,
+          artistId: artistInfo.id.toString(),
           coverUrl: (t as any).album?.cover_xl || (t as any).album?.cover_medium || artistInfo.picture_xl
         }));
 
@@ -147,6 +148,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
                 title: track.title,
                 url: track.preview,
                 artist: artistInfo.name,
+                artistId: artistInfo.id.toString(),
                 coverUrl: (track as any).album?.cover_xl || (track as any).album?.cover_medium || artistInfo.picture_xl
               }}
               queue={trackQueue}

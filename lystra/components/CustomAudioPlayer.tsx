@@ -8,6 +8,7 @@ interface CustomAudioPlayerProps {
     title: string;
     url: string;
     artist: string;
+    artistId?: string;
     coverUrl?: string;
   };
   queue?: CustomAudioPlayerProps["track"][];

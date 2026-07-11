@@ -6,12 +6,13 @@ import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 interface AlbumTrackListProps {
   tracks: any[];
   artistName?: string;
+  artistId?: string | number;
   coverUrl?: string;
 }
 
-export default function AlbumTrackList({ tracks, artistName = "Неизвестный исполнитель", coverUrl }: AlbumTrackListProps) {
+export default function AlbumTrackList({ tracks, artistName = "Неизвестный исполнитель", artistId, coverUrl }: AlbumTrackListProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const limit = 3;
   const hasMore = tracks.length > limit;
 
@@ -21,6 +22,7 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
     title: track.title,
     url: track.preview,
     artist: track.artist?.name || artistName,
+    artistId: track.artist?.id?.toString() || artistId?.toString(),
     coverUrl: coverUrl
   });
 

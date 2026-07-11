@@ -4,6 +4,7 @@ export interface Track {
   id: string;
   title: string;
   artist: string;
+  artistId?: string;
   url: string;
   coverUrl?: string;
 }
@@ -38,6 +39,8 @@ interface PlayerStore {
   playNext: () => void;
   playPrev: () => void;
   toggleShuffle: () => void;
+  playAtOrderIndex: (orderIndex: number) => void;
+  removeFromQueue: (trackId: string) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
@@ -121,5 +124,32 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       playOrder,
       playOrderIndex: playOrder.indexOf(currentIndexInQueue),
     };
+  }),
+
+  playAtOrderIndex: (orderIndex) => set((state) => {
+    const queueIndex = state.playOrder[orderIndex];
+    const track = queueIndex !== undefined ? state.queue[queueIndex] : undefined;
+    if (!track) return state;
+    return { currentTrack: track, playOrderIndex: orderIndex, isPlaying: true };
+  }),
+
+  removeFromQueue: (trackId) => set((state) => {
+    // Нельзя удалить трек, который сейчас играет — его можно только переключить
+    if (state.currentTrack?.id === trackId) return state;
+
+    const removedQueueIndex = state.queue.findIndex((t) => t.id === trackId);
+    if (removedQueueIndex === -1) return state;
+
+    const newQueue = state.queue.filter((_, i) => i !== removedQueueIndex);
+    const newPlayOrder = state.playOrder
+      .filter((qIdx) => qIdx !== removedQueueIndex)
+      .map((qIdx) => (qIdx > removedQueueIndex ? qIdx - 1 : qIdx));
+
+    const currentQueueIndex = state.currentTrack
+      ? newQueue.findIndex((t) => t.id === state.currentTrack!.id)
+      : -1;
+    const newPlayOrderIndex = currentQueueIndex === -1 ? -1 : newPlayOrder.indexOf(currentQueueIndex);
+
+    return { queue: newQueue, playOrder: newPlayOrder, playOrderIndex: newPlayOrderIndex };
   }),
 }));
