@@ -11,18 +11,23 @@ export default function GlobalPlayer() {
     isMuted,
     isShuffled,
     queue,
+    playOrder,
+    playOrderIndex,
     togglePlayPause,
     setVolume,
     toggleMute,
     playNext,
     playPrev,
     toggleShuffle,
+    playAtOrderIndex,
+    removeFromQueue,
   } = usePlayerStore();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [loadError, setLoadError] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
 
   // Сбрасываем прогресс/ошибку при смене трека без лишнего эффекта
   const lastTrackIdRef = useRef(currentTrack?.id);
@@ -172,6 +177,22 @@ export default function GlobalPlayer() {
               <line x1="4" y1="4" x2="9" y2="9"></line>
             </svg>
           </button>
+
+          <button
+            onClick={() => setIsQueueOpen((open) => !open)}
+            aria-label="Очередь воспроизведения"
+            aria-pressed={isQueueOpen}
+            className={`transition-colors ${isQueueOpen ? "text-[#34d399]" : "text-neutral-400 hover:text-white"}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
         <div className="hidden md:flex items-center w-full gap-3 text-xs text-neutral-400 font-medium">
@@ -214,6 +235,70 @@ export default function GlobalPlayer() {
           className="w-24 h-1 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-[#a78bfa] hover:accent-[#34d399] transition-all"
         />
       </div>
+
+      {/* 4. Очередь воспроизведения */}
+      {isQueueOpen && (
+        <div className="fixed bottom-20 md:bottom-24 right-3 md:right-8 w-[calc(100%-1.5rem)] max-w-sm max-h-[60vh] bg-[#181818] border border-neutral-800 rounded-2xl shadow-2xl z-[9998] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-shrink-0">
+            <span className="text-white font-bold text-sm">Очередь воспроизведения</span>
+            <button
+              onClick={() => setIsQueueOpen(false)}
+              aria-label="Закрыть очередь"
+              className="text-neutral-400 hover:text-white transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {playOrder.length === 0 ? (
+              <p className="text-neutral-500 text-sm px-4 py-6 text-center">Очередь пуста</p>
+            ) : (
+              playOrder.map((queueIndex, orderIndex) => {
+                const track = queue[queueIndex];
+                if (!track) return null;
+                const isCurrent = orderIndex === playOrderIndex;
+
+                return (
+                  <div
+                    key={`${track.id}-${orderIndex}`}
+                    onClick={() => playAtOrderIndex(orderIndex)}
+                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-neutral-900/70 transition-colors group ${isCurrent ? "bg-neutral-900/50" : ""}`}
+                  >
+                    <div className="w-9 h-9 bg-neutral-800 rounded overflow-hidden flex-shrink-0 border border-neutral-700">
+                      {track.coverUrl ? (
+                        <img src={track.coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#a78bfa]/20 to-[#34d399]/20">
+                          <span className="text-[#a78bfa] text-[10px] font-bold">LY</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                      <span className={`text-sm font-medium truncate ${isCurrent ? "text-[#34d399]" : "text-white"}`}>
+                        {track.title}
+                      </span>
+                      <span className="text-neutral-400 text-xs truncate">{track.artist}</span>
+                    </div>
+                    {!isCurrent && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromQueue(track.id);
+                        }}
+                        aria-label={`Удалить "${track.title}" из очереди`}
+                        className="text-neutral-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );
