@@ -56,8 +56,17 @@ export default async function HomePage({
     console.error("Ошибка загрузки Deezer:", error);
   }
 
-  // 2. Заглушка для инди-треков (таблицы tracks и releases добавим в БД позже)
-  const indieTracks: any[] = [];
+  // 2. Последние треки независимой сцены (с фильтрацией по жанру)
+  const indieTracks = await prisma.tracks.findMany({
+    where: genre ? { releases: { genre: { contains: genre, mode: 'insensitive' } } } : undefined,
+    orderBy: { created_at: 'desc' },
+    take: genre ? 10 : 8,
+    include: {
+      releases: {
+        include: { artists: true },
+      },
+    },
+  });
 
   // 3. Глобальная лента отзывов через Prisma
   const reviews = await prisma.reviews.findMany({
