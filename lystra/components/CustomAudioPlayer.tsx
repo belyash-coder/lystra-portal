@@ -10,9 +10,10 @@ interface CustomAudioPlayerProps {
     artist: string;
     coverUrl?: string;
   };
+  queue?: CustomAudioPlayerProps["track"][];
 }
 
-export default function CustomAudioPlayer({ track }: CustomAudioPlayerProps) {
+export default function CustomAudioPlayer({ track, queue }: CustomAudioPlayerProps) {
   const { currentTrack, isPlaying, playTrack, togglePlayPause } = usePlayerStore();
 
   // Проверяем, играет ли именно этот трек прямо сейчас
@@ -21,13 +22,13 @@ export default function CustomAudioPlayer({ track }: CustomAudioPlayerProps) {
 
   const handleTogglePlay = () => {
     if (!track.url) return;
-    
+
     if (isThisTrackCurrent) {
       // Если трек уже загружен в плеер, переключаем play/pause
       togglePlayPause();
     } else {
-      // Если это новый трек — загружаем его в глобальный стор
-      playTrack(track);
+      // Если это новый трек — загружаем его в глобальный стор вместе с очередью
+      playTrack(track, queue);
     }
   };
 
