@@ -131,12 +131,7 @@ export default async function HomePage({
                     {globalReleases.map((album: any) => (
                       <Link href={`/album/${album.id}`} key={album.id} className="group cursor-pointer block">
                         <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
-                          <img src={album.cover_medium} alt={album.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
-                              <Play className="w-6 h-6 ml-1" fill="currentColor" />
-                            </div>
-                          </div>
+                          <img src={album.cover_medium} alt={album.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
                         </div>
                         <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] transition-colors">{album.title}</h3>
                         <p className="text-xs text-neutral-400 truncate">{album.artist.name}</p>
