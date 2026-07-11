@@ -7,6 +7,13 @@ import { ReviewForm } from '@/components/ReviewForm';
 import { FollowArtistButton } from '@/components/FollowArtistButton';
 import { AddToCollectionButton } from '@/components/AddToCollectionButton';
 import { AddToListenLaterButton } from '@/components/AddToListenLaterButton';
+import CustomAudioPlayer from '@/components/CustomAudioPlayer';
+
+const STREAMING_SERVICES = [
+  { name: 'Spotify', color: '#1DB954', href: (q: string) => `https://open.spotify.com/search/${q}` },
+  { name: 'Apple Music', color: '#FA243C', href: (q: string) => `https://music.apple.com/search?term=${q}` },
+  { name: 'YouTube Music', color: '#FF0000', href: (q: string) => `https://music.youtube.com/search?q=${q}` },
+];
 
 export default async function ReleasePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -17,12 +24,14 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   const release = await prisma.releases.findUnique({
     where: { id },
-    include: { artists: true },
+    include: { artists: true, tracks: true },
   });
 
   if (!release) {
     notFound();
   }
+
+  const streamingQuery = encodeURIComponent(`${release.artists.stage_name} ${release.title}`);
 
   let isAddedToCollection = false;
   let isAddedToListenLater = false;
@@ -98,6 +107,62 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
               ))}
             </div>
           )}
+
+          {release.tracks.length > 0 && (
+            <div className="flex flex-col gap-2 mb-6 max-w-xl">
+              {release.tracks.map((track) => {
+                const isExternalLink = track.audio_path?.startsWith('http') || track.audio_path?.startsWith('bandcamp:');
+                const linkHref = track.audio_path?.startsWith('http') ? track.audio_path : '#';
+
+                return (
+                  <div
+                    key={track.id}
+                    className="flex items-center gap-4 bg-zinc-900/40 border border-zinc-800/50 rounded-xl px-4 py-3"
+                  >
+                    {isExternalLink ? (
+                      <a
+                        href={linkHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Слушать "${track.title}"`}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#34d399]/10 text-[#34d399] hover:bg-[#34d399]/20 hover:scale-105 transition-all duration-200"
+                      >
+                        <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      </a>
+                    ) : (
+                      <CustomAudioPlayer
+                        track={{
+                          id: track.id,
+                          title: track.title,
+                          url: track.audio_path,
+                          artist: release.artists.stage_name,
+                          coverUrl: release.cover_path || undefined,
+                        }}
+                      />
+                    )}
+                    <span className="text-white font-medium truncate">{track.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Ссылки на поиск релиза в стриминговых сервисах */}
+          <div className="flex flex-wrap items-center gap-2 mb-8">
+            <span className="text-xs text-zinc-500 font-medium mr-1">Искать также на:</span>
+            {STREAMING_SERVICES.map((service) => (
+              <a
+                key={service.name}
+                href={service.href(streamingQuery)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: service.color, borderColor: `${service.color}4D` }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border hover:brightness-125 transition-all"
+              >
+                {service.name}
+              </a>
+            ))}
+          </div>
 
           <div className="flex flex-wrap items-center gap-3 mb-8">
             <AddToCollectionButton
