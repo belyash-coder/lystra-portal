@@ -61,11 +61,24 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             Независимая сцена
           </span>
           <h1 className="text-5xl font-bold mb-4">{release.title}</h1>
-          <div className="flex items-center gap-4 mb-8">
+          <div className="flex items-center gap-4 mb-4">
             <p className="text-xl text-zinc-400">
               Артист: <span className="text-white">{release.artists.stage_name}</span>{release.genre ? <> • Жанр: {release.genre}</> : null}
             </p>
           </div>
+
+          {release.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-8">
+              {release.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs font-medium text-[#a78bfa] bg-[#a78bfa]/10 border border-[#a78bfa]/30 px-2.5 py-1 rounded-full"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Форма оценки и отзыва */}
           <div className="mt-4 max-w-xl">

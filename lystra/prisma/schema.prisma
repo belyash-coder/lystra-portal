@@ -91,6 +91,7 @@ model releases {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title      String
   genre      String?
+  tags       String[] @default([])
   cover_path String?
   artist_id  String   @db.Uuid
   user_id    String   @db.Uuid
