@@ -119,9 +119,20 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
     Популярные треки <span className="text-xs text-neutral-500 font-normal">(Превью)</span>
   </h2>
   <div className="space-y-2">
-    {topTracks.map((track, index) => (
-          <div 
-            key={track.id} 
+    {(() => {
+      const trackQueue = topTracks
+        .filter((t) => t.preview)
+        .map((t) => ({
+          id: t.id.toString(),
+          title: t.title,
+          url: t.preview,
+          artist: artistInfo.name,
+          coverUrl: (t as any).album?.cover_xl || (t as any).album?.cover_medium || artistInfo.picture_xl
+        }));
+
+      return topTracks.map((track, index) => (
+          <div
+            key={track.id}
             className="flex items-center justify-between p-3 rounded-xl hover:bg-neutral-900/60 transition-colors group"
           >
             <div className="flex items-center gap-4 min-w-0">
@@ -130,17 +141,19 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
                 {track.title}
               </p>
             </div>
-            <CustomAudioPlayer 
+            <CustomAudioPlayer
               track={{
                 id: track.id.toString(),
                 title: track.title,
                 url: track.preview,
                 artist: artistInfo.name,
                 coverUrl: (track as any).album?.cover_xl || (track as any).album?.cover_medium || artistInfo.picture_xl
-              }} 
+              }}
+              queue={trackQueue}
             />
           </div>
-        ))}
+        ));
+    })()}
   </div>
 </section>
 

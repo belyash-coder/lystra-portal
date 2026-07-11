@@ -24,6 +24,8 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
     coverUrl: coverUrl
   });
 
+  const trackQueue = tracks.filter((t) => t.preview).map(getTrackObject);
+
   return (
     <div className="w-full mb-16">
       <div className="grid grid-cols-[auto_1fr_auto] gap-4 text-neutral-400 border-b border-neutral-800 pb-2 mb-4 px-4 text-sm font-bold">
@@ -45,7 +47,7 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
             </span>
 
             {track.preview ? (
-              <CustomAudioPlayer track={getTrackObject(track)} />
+              <CustomAudioPlayer track={getTrackObject(track)} queue={trackQueue} />
             ) : (
               <span className="text-neutral-600 text-xs italic">Нет превью</span>
             )}
@@ -71,7 +73,7 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
                   </span>
 
                   {track.preview ? (
-                    <CustomAudioPlayer track={getTrackObject(track)} />
+                    <CustomAudioPlayer track={getTrackObject(track)} queue={trackQueue} />
                   ) : (
                     <span className="text-neutral-600 text-xs italic">Нет превью</span>
                   )}
