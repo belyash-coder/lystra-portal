@@ -1,7 +1,7 @@
 import Link from "next/link";
 import StreamPlayer from "@/components/StreamPlayer";
 import { prisma } from "@/lib/prisma";
-import { Play, ExternalLink } from "lucide-react";
+import { Play } from "lucide-react";
 import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 import { LikeButton } from '@/components/LikeButton'
 import { ReviewComments } from '@/components/ReviewComments'
@@ -177,58 +177,6 @@ export default async function HomePage({
                       const coverUrl = isExternalCover 
                         ? (release.cover_path.startsWith('//') ? `https:${release.cover_path}` : release.cover_path)
                         : getPublicUrl('release_covers', release?.cover_path);
-
-                      // Проверяем, является ли аудио внешним источником
-                      const isExternalLink = track.audio_path?.startsWith('http') || track.audio_path?.startsWith('bandcamp:');
-
-                      if (isExternalLink) {
-                            const linkHref = track.audio_path?.startsWith('http') ? track.audio_path : '#';
-                            
-                            let platformName = "источнике";
-                            if (track.audio_path?.includes('soundcloud.com')) {
-                              platformName = "SoundCloud";
-                            } else if (track.audio_path?.includes('bandcamp.com') || track.audio_path?.startsWith('bandcamp:')) {
-                              platformName = "Bandcamp";
-                            }
-
-                            return (
-                              <div 
-                                key={track.id} 
-                                tabIndex={0}
-                                className="group block outline-none"
-                              >
-                                <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800 cursor-pointer">
-                                  {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-300" />}
-                                  
-                                  <a 
-                                    href={linkHref} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="absolute inset-0 bg-black/50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto transition-opacity duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
-                                  >
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#34d399]/90 flex items-center justify-center text-black shadow-lg flex-shrink-0">
-                                      <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6" />
-                                    </div>
-                                    <span className="text-white text-[10px] sm:text-xs font-medium text-center leading-tight px-1">
-                                      Слушать на<br/>
-                                      <span className="font-bold text-[#34d399]">{platformName}</span>
-                                    </span>
-                                  </a>
-                                </div>
-                                <a href={linkHref} target="_blank" rel="noopener noreferrer" className="block focus:outline-none">
-                                  <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#34d399] group-focus:text-[#34d399] transition-colors">{track.title}</h3>
-                                </a>
-                                <p className="text-xs text-neutral-400 truncate">{artist?.stage_name || "Неизвестный артист"}</p>
-                                {release?.genre && (
-                                  <div className="mt-1.5">
-                                    <span className="inline-block text-[10px] border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
-                                      {release.genre}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
 
                       return (
                         <div 

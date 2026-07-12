@@ -2,24 +2,19 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Play, ExternalLink, Music } from 'lucide-react'
+import { Play, Music } from 'lucide-react'
 
 export function FollowingTrackCard({ track }: { track: any }) {
   const profile = track.profiles;
   const release = track.releases;
-  
-  // Логика обложки из твоего IndieReleasesGrid
-  const coverUrl = release?.cover_path?.startsWith('http') 
-    ? release.cover_path 
-    : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/release_covers/${release?.cover_path}`;
-  
-  const isExternalLink = track.audio_path?.startsWith('http');
-  const linkHref = isExternalLink ? track.audio_path : `/release/${release?.id}`;
-  const artistName = release?.artists?.stage_name || "Неизвестный артист";
 
-  let platformName = "источнике";
-  if (track.audio_path?.includes('soundcloud.com')) platformName = "SoundCloud";
-  else if (track.audio_path?.includes('bandcamp.com') || track.audio_path?.startsWith('bandcamp:')) platformName = "Bandcamp";
+  // Логика обложки из твоего IndieReleasesGrid
+  const coverUrl = release?.cover_path?.startsWith('http')
+    ? release.cover_path
+    : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/release_covers/${release?.cover_path}`;
+
+  const linkHref = `/release/${release?.id}`;
+  const artistName = release?.artists?.stage_name || "Неизвестный артист";
 
   return (
     <div className="bg-gradient-to-br from-white/5 to-transparent p-5 rounded-2xl border border-white/10 hover:border-[#34d399]/40 hover:shadow-[0_8px_24px_rgba(52,211,153,0.1)] transition-all duration-300 flex flex-col gap-4 relative group backdrop-blur-sm">
@@ -56,25 +51,22 @@ export function FollowingTrackCard({ track }: { track: any }) {
 
       {/* Тело: Обложка + информация */}
       <div className="flex items-center gap-4">
-        <a href={linkHref} target={isExternalLink ? "_blank" : "_self"} rel={isExternalLink ? "noopener noreferrer" : ""} className="w-16 h-16 bg-neutral-900 rounded-xl shrink-0 overflow-hidden relative border border-white/10 shadow-md group-hover:border-[#34d399]/50 transition-all duration-300 flex items-center justify-center cursor-pointer">
+        <Link href={linkHref} className="w-16 h-16 bg-neutral-900 rounded-xl shrink-0 overflow-hidden relative border border-white/10 shadow-md group-hover:border-[#34d399]/50 transition-all duration-300 flex items-center justify-center cursor-pointer">
            {coverUrl ? (
              <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
            ) : (
              <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-500">Н/Д</div>
            )}
            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-             {isExternalLink ? <ExternalLink className="w-5 h-5 text-[#34d399]" /> : <Play className="w-5 h-5 text-[#a78bfa] ml-0.5" fill="currentColor" />}
+             <Play className="w-5 h-5 text-[#a78bfa] ml-0.5" fill="currentColor" />
            </div>
-        </a>
-        
+        </Link>
+
         <div className="flex-1 min-w-0">
-          <a href={linkHref} target={isExternalLink ? "_blank" : "_self"} rel={isExternalLink ? "noopener noreferrer" : ""} className="block outline-none">
+          <Link href={linkHref} className="block outline-none">
             <h3 className="font-bold text-sm text-white truncate hover:text-[#34d399] transition-colors">{track.title}</h3>
-          </a>
+          </Link>
           <p className="text-xs text-neutral-400 truncate mt-0.5">{artistName}</p>
-          {isExternalLink && (
-             <p className="text-[10px] text-[#34d399] mt-1 font-medium">на {platformName}</p>
-          )}
         </div>
       </div>
       
