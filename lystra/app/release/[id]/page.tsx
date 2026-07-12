@@ -9,6 +9,8 @@ import { AddToCollectionButton } from '@/components/AddToCollectionButton';
 import { AddToListenLaterButton } from '@/components/AddToListenLaterButton';
 import CustomAudioPlayer from '@/components/CustomAudioPlayer';
 import StreamingLinks from '@/components/StreamingLinks';
+import Link from 'next/link';
+import Image from 'next/image';
 
 export default async function ReleasePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -19,7 +21,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
   const release = await prisma.releases.findUnique({
     where: { id },
-    include: { artists: true, tracks: true },
+    include: { artists: true, tracks: true, profiles: true },
   });
 
   if (!release) {
@@ -87,6 +89,26 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
               Артист: <span className="text-white">{release.artists.stage_name}</span>{release.genre ? <> • Жанр: {release.genre}</> : null}
             </p>
           </div>
+
+          {release.profiles && (
+            <Link
+              href={`/profile/${release.profiles.username || release.profiles.id}`}
+              className="flex items-center gap-2.5 mb-6 w-fit group"
+            >
+              <div className="w-7 h-7 relative rounded-full overflow-hidden bg-zinc-800 border border-zinc-700 shrink-0">
+                {release.profiles.avatar_url ? (
+                  <Image src={release.profiles.avatar_url} alt="avatar" fill className="object-cover" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-[#34d399] font-bold">
+                    {release.profiles.username?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                )}
+              </div>
+              <span className="text-sm text-zinc-500">
+                Добавил(а) <span className="text-zinc-300 font-medium group-hover:text-[#34d399] transition-colors">@{release.profiles.username || 'user'}</span>
+              </span>
+            </Link>
+          )}
 
           {release.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-8">

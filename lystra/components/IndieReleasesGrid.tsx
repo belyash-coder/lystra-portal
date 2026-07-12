@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Play, ExternalLink } from "lucide-react";
+import { Play } from "lucide-react";
 
 export default function IndieReleasesGrid({ initialTracks }: { initialTracks: any[] }) {
   const [visibleCount, setVisibleCount] = useState(10);
@@ -23,51 +23,7 @@ export default function IndieReleasesGrid({ initialTracks }: { initialTracks: an
               ? release.cover_path 
               : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/release_covers/${release?.cover_path}`;
             
-            const isExternalLink = track.audio_path?.startsWith('http');
-            const linkHref = isExternalLink ? track.audio_path : `/release/${release?.id}`;
             const artistName = release?.artists?.stage_name || "Неизвестный артист";
-
-            if (isExternalLink) {
-              let platformName = "источнике";
-              if (track.audio_path?.includes('soundcloud.com')) {
-                platformName = "SoundCloud";
-              } else if (track.audio_path?.includes('bandcamp.com') || track.audio_path?.startsWith('bandcamp:')) {
-                platformName = "Bandcamp";
-              }
-
-              return (
-                <div key={track.id} tabIndex={0} className="group block outline-none">
-                  <div className="relative aspect-square overflow-hidden rounded-xl mb-4 bg-neutral-900 shadow-lg cursor-pointer">
-                    {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-500" />}
-                    <a 
-                      href={linkHref} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="absolute inset-0 bg-black/50 opacity-0 invisible group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#34d399]/90 flex items-center justify-center text-black shadow-lg flex-shrink-0">
-                        <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </div>
-                      <span className="text-white text-[10px] sm:text-xs font-medium text-center leading-tight px-1">
-                        Слушать на<br/>
-                        <span className="font-bold text-[#34d399]">{platformName}</span>
-                      </span>
-                    </a>
-                  </div>
-                  <a href={linkHref} target="_blank" rel="noopener noreferrer" className="block focus:outline-none">
-                    <h3 className="font-bold text-base text-white truncate group-hover:text-[#34d399] group-focus:text-[#34d399] transition-colors">{track.title}</h3>
-                  </a>
-                  <p className="text-sm text-neutral-400 truncate mt-1">{artistName}</p>
-                  {release?.genre && (
-                    <div className="mt-2">
-                      <span className="inline-block text-xs border border-[#a78bfa]/30 text-neutral-400 px-2 py-0.5 rounded-md max-w-full truncate">
-                        {release.genre}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            }
 
             return (
               <div key={track.id} tabIndex={0} className="group block outline-none">
