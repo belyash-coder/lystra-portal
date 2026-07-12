@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { getSession } from 'next-auth/react';
 import { Home, Search, MessageSquare, Info } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -16,14 +18,28 @@ const NAV_ITEMS = [
 export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+
   // Заглушка для счетчика уведомлений (таблицу notifications добавим позже)
-  const unreadCount = 0; 
+  const unreadCount = 0;
   const pathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    getSession().then((session) => {
+      if (session?.user) {
+        setAvatarUrl(session.user.image || null);
+        setUsername(session.user.name || null);
+      } else {
+        setAvatarUrl(null);
+        setUsername(null);
+      }
+    });
+  }, [pathname]);
 
   useEffect(() => {
     setIsOpen(false);
@@ -86,6 +102,16 @@ export default function MobileMenu({ authNode }: { authNode: React.ReactNode }) 
           <svg className="w-7 h-7 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
+        ) : username ? (
+          <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-[#a78bfa]/50 transition-all pointer-events-none bg-neutral-800 flex-shrink-0">
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={username} width={32} height={32} className="w-full h-full object-cover" unoptimized />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-xs text-[#34d399] font-bold">
+                {username.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
         ) : (
           <svg className="w-7 h-7 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
