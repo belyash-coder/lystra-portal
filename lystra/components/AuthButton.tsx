@@ -169,8 +169,26 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
       )}
 
       {(isOpen || isMobile) && (
-        <div className={isMobile ? "w-full flex flex-col" : "absolute right-0 mt-3 w-80 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"}>
-          <div className={`${isMobile ? 'flex flex-col gap-1' : 'p-3 border-b border-neutral-800 bg-[#121212] flex flex-col gap-1.5'}`}>
+        <div className={isMobile ? "w-full flex flex-col" : "absolute right-0 mt-3 w-72 bg-[#1a1a1a] border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"}>
+          {!isMobile && (
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-800 bg-gradient-to-br from-[#a78bfa]/10 to-transparent">
+              <div className="w-9 h-9 relative rounded-full flex-shrink-0 overflow-hidden bg-neutral-800 border border-neutral-700">
+                {profile?.avatar_url ? (
+                  <Image src={profile.avatar_url} alt="avatar" fill className="object-cover" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-sm text-[#34d399] font-bold">
+                    {profile?.username?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-bold text-white truncate">{profile?.username || 'Профиль'}</span>
+                <span className="text-xs text-neutral-500">Вы вошли в аккаунт</span>
+              </div>
+            </div>
+          )}
+
+          <div className={`${isMobile ? 'flex flex-col gap-1' : 'p-2 border-b border-neutral-800 flex flex-col gap-0.5'}`}>
             {isMobile ? (
               <>
                 <Link
@@ -193,25 +211,19 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
                 <Link
                   href="/profile"
                   onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 p-3 rounded-xl text-sm font-bold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all border border-neutral-800/50 hover:border-[#a78bfa]/30"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all"
                 >
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 text-[#a78bfa]">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col flex-1">
-                    <span>Профиль</span>
-                    <span className="text-neutral-500 text-xs font-medium">Ваши данные и статистика</span>
-                  </div>
-                  <span className="text-neutral-500 text-xs">→</span>
+                  <User className="w-4 h-4 text-[#a78bfa]" />
+                  Профиль
                 </Link>
 
                 <Link
                   href="/following"
                   onClick={() => setIsOpen(false)}
-                  className="flex items-center justify-between p-2 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-white/[0.04] transition-all"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-neutral-200 hover:text-white hover:bg-[#a78bfa]/10 transition-all"
                 >
-                  <span>Мои подписки</span>
-                  <UserPlus className="w-4 h-4 text-neutral-500" />
+                  <UserPlus className="w-4 h-4 text-[#a78bfa]" />
+                  Мои подписки
                 </Link>
               </>
             )}
@@ -290,11 +302,12 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
               Выйти
             </button>
           ) : (
-            <div className="p-3 bg-[#121212] flex justify-end">
+            <div className="p-2">
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
-                className="w-full text-center text-xs text-neutral-400 hover:text-red-400 border border-red-500/30 hover:border-red-500/60 px-3 py-2 rounded-xl transition-all active:scale-95 font-medium"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-400/90 bg-red-500/5 hover:bg-red-500/10 active:bg-red-500/15 transition-all w-full"
               >
+                <LogOut className="w-4 h-4 text-red-400/70" />
                 Выйти
               </button>
             </div>

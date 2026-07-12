@@ -5,6 +5,7 @@ import AlbumTrackList from "@/components/AlbumTrackList";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import { AddToCollectionButton } from "@/components/AddToCollectionButton";
 import { AddToListenLaterButton } from "@/components/AddToListenLaterButton";
+import StreamingLinks from "@/components/StreamingLinks";
 import { ReviewForm } from "@/components/ReviewForm";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -176,6 +177,8 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
             <span className="text-gray-400">{album.release_date?.substring(0, 4)}</span>
           </div>
           
+          <StreamingLinks artist={album.artist.name} title={album.title} className="justify-center md:justify-start mb-4" />
+
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
             {/* Кнопка добавления в коллекцию */}
             <AddToCollectionButton
@@ -192,7 +195,7 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
             />
 
             {/* Якорная ссылка к рецензиям (Скрыта на мобильных) */}
-            <a 
+            <a
               href="#reviews"
               className="hidden md:flex items-center justify-center px-6 py-2.5 rounded-full border border-neutral-700 bg-neutral-900/50 font-bold text-neutral-400 hover:text-white hover:border-[#34d399] transition-all"
             >

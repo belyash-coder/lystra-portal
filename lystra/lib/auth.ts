@@ -28,7 +28,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         )
 
         if (passwordsMatch) {
-          return { id: user.id, email: user.email, name: user.username }
+          return { id: user.id, email: user.email, name: user.username, image: user.avatar_url }
         }
 
         return null
@@ -36,9 +36,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.picture = user.image
+      }
+      return token
+    },
     async session({ session, token }) {
       if (token?.sub) {
         session.user.id = token.sub
+      }
+      if (typeof token?.picture === "string") {
+        session.user.image = token.picture
       }
       return session
     },
