@@ -86,7 +86,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           <h1 className="text-5xl font-bold mb-4">{release.title}</h1>
           <div className="flex items-center gap-4 mb-4">
             <p className="text-xl text-zinc-400">
-              Артист: <span className="text-white">{release.artists.stage_name}</span>{release.genre ? <> • Жанр: {release.genre}</> : null}
+              Артист:{' '}
+              <Link href={`/indie-artist/${release.artist_id}`} className="text-white hover:text-[#a78bfa] transition-colors">
+                {release.artists.stage_name}
+              </Link>
+              {release.genre ? <> • Жанр: {release.genre}</> : null}
             </p>
           </div>
 
