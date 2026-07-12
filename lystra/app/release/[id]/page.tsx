@@ -86,7 +86,11 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
           <h1 className="text-5xl font-bold mb-4">{release.title}</h1>
           <div className="flex items-center gap-4 mb-4">
             <p className="text-xl text-zinc-400">
-              Артист: <span className="text-white">{release.artists.stage_name}</span>{release.genre ? <> • Жанр: {release.genre}</> : null}
+              Артист:{' '}
+              <Link href={`/indie-artist/${release.artist_id}`} className="text-white hover:text-[#a78bfa] transition-colors">
+                {release.artists.stage_name}
+              </Link>
+              {release.genre ? <> • Жанр: {release.genre}</> : null}
             </p>
           </div>
 
@@ -129,6 +133,13 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 const isExternalLink = track.audio_path?.startsWith('http') || track.audio_path?.startsWith('bandcamp:');
                 const linkHref = track.audio_path?.startsWith('http') ? track.audio_path : '#';
 
+                let platformName = 'источнике';
+                if (track.audio_path?.includes('soundcloud.com')) {
+                  platformName = 'SoundCloud';
+                } else if (track.audio_path?.includes('bandcamp.com') || track.audio_path?.startsWith('bandcamp:')) {
+                  platformName = 'Bandcamp';
+                }
+
                 return (
                   <div
                     key={track.id}
@@ -139,23 +150,30 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                         href={linkHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Слушать "${track.title}"`}
-                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#34d399]/10 text-[#34d399] hover:bg-[#34d399]/20 hover:scale-105 transition-all duration-200"
+                        className="flex-1 min-w-0 flex items-center justify-between gap-4 group"
                       >
-                        <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                        <span className="text-white font-medium truncate">{track.title}</span>
+                        <span className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold text-[#34d399] bg-[#34d399]/10 border border-[#34d399]/30 px-3 py-1.5 rounded-full group-hover:bg-[#34d399]/20 transition-all">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          Слушать на {platformName}
+                        </span>
                       </a>
                     ) : (
-                      <CustomAudioPlayer
-                        track={{
-                          id: track.id,
-                          title: track.title,
-                          url: track.audio_path,
-                          artist: release.artists.stage_name,
-                          coverUrl: release.cover_path || undefined,
-                        }}
-                      />
+                      <>
+                        <CustomAudioPlayer
+                          track={{
+                            id: track.id,
+                            title: track.title,
+                            url: track.audio_path,
+                            artist: release.artists.stage_name,
+                            coverUrl: release.cover_path || undefined,
+                          }}
+                        />
+                        <span className="text-white font-medium truncate">{track.title}</span>
+                      </>
                     )}
-                    <span className="text-white font-medium truncate">{track.title}</span>
                   </div>
                 );
               })}
