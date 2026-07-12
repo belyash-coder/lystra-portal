@@ -30,10 +30,10 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
 
   return (
     <div className="w-full mb-16">
-      <div className="grid grid-cols-[auto_1fr_auto] gap-4 text-neutral-400 border-b border-neutral-800 pb-2 mb-4 px-4 text-sm font-bold">
+      <div className="grid grid-cols-[auto_auto_1fr] gap-4 text-neutral-400 border-b border-neutral-800 pb-2 mb-4 px-4 text-sm font-bold">
         <span>#</span>
+        <span className="w-8" />
         <span>Название</span>
-        <span>Превью</span>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -41,18 +41,24 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
         {tracks.slice(0, limit).map((track, index) => (
           <div
             key={track.id}
-            className="grid grid-cols-[auto_1fr_auto] gap-4 items-center p-3 hover:bg-neutral-900/50 rounded-xl transition-colors group"
+            className="grid grid-cols-[auto_auto_1fr] gap-4 items-center p-3 hover:bg-neutral-900/50 rounded-xl transition-colors group"
           >
             <span className="w-6 text-right text-neutral-500 font-medium">{index + 1}</span>
-            <span className="font-bold truncate group-hover:text-[#a78bfa] transition-colors">
-              {track.title}
-            </span>
 
             {track.preview ? (
               <CustomAudioPlayer track={getTrackObject(track)} queue={trackQueue} />
             ) : (
-              <span className="text-neutral-600 text-xs italic">Нет превью</span>
+              <span
+                title="Нет превью"
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-neutral-700"
+              >
+                <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              </span>
             )}
+
+            <span className="font-bold truncate group-hover:text-[#a78bfa] transition-colors">
+              {track.title}
+            </span>
           </div>
         ))}
 
@@ -67,18 +73,24 @@ export default function AlbumTrackList({ tracks, artistName = "Неизвест�
               {tracks.slice(limit).map((track, index) => (
                 <div
                   key={track.id}
-                  className="grid grid-cols-[auto_1fr_auto] gap-4 items-center p-3 hover:bg-neutral-900/50 rounded-xl transition-colors group"
+                  className="grid grid-cols-[auto_auto_1fr] gap-4 items-center p-3 hover:bg-neutral-900/50 rounded-xl transition-colors group"
                 >
                   <span className="w-6 text-right text-neutral-500 font-medium">{limit + index + 1}</span>
-                  <span className="font-bold truncate group-hover:text-[#a78bfa] transition-colors">
-                    {track.title}
-                  </span>
 
                   {track.preview ? (
                     <CustomAudioPlayer track={getTrackObject(track)} queue={trackQueue} />
                   ) : (
-                    <span className="text-neutral-600 text-xs italic">Нет превью</span>
+                    <span
+                      title="Нет превью"
+                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-neutral-700"
+                    >
+                      <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    </span>
                   )}
+
+                  <span className="font-bold truncate group-hover:text-[#a78bfa] transition-colors">
+                    {track.title}
+                  </span>
                 </div>
               ))}
             </div>
