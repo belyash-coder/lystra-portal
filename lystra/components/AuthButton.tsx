@@ -8,6 +8,7 @@ import { Bell, Heart, MessageSquare, UserPlus, Mail, User, LogOut } from 'lucide
 import { useChat } from '@/components/ChatProvider';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { getFrameClass, getGlowClass, hasGlow } from '@/lib/levelTiers';
 
 interface Notification {
   id: string;
@@ -24,6 +25,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [xp, setXp] = useState(0);
+  const [title, setTitle] = useState<string | null>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { activeChat, openChat } = useChat();
@@ -46,6 +49,13 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
             username: session.user.name || 'Пользователь',
             avatar_url: session.user.image || null
           });
+          fetch('/api/profile/me')
+            .then((res) => res.json())
+            .then((data) => {
+              setXp(data.xp || 0);
+              setTitle(data.title || null);
+            })
+            .catch(() => { setXp(0); setTitle(null); });
         }
       } catch (error) {
         console.error("Ошибка загрузки сессии:", error);
@@ -90,17 +100,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
     }
   };
 
-  // Временно ставим 0 баллов, пока не подключим API статистики
-  const points = 0;
-  
-  let frameClass = "border-2 border-transparent group-hover:border-[#a78bfa]/50"; 
-  if (points >= 300) {
-    frameClass = "p-0.5 bg-gradient-to-tr from-[#a78bfa] via-[#34d399] to-[#a78bfa] shadow-[0_0_0_2px_#121212,0_0_0_4px_#a78bfa]";
-  } else if (points >= 100) {
-    frameClass = "border-[2px] border-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.3)] group-hover:shadow-[0_0_12px_rgba(52,211,153,0.5)]";
-  } else if (points >= 28) {
-    frameClass = "border-2 border-[#a78bfa] ring-1 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]";
-  }
+  const frameClass = getFrameClass(xp, 'compact');
+  const showGlow = hasGlow(xp);
 
   if (loading) {
     return <div className="w-8 h-8 rounded-full bg-neutral-800 animate-pulse" />;
@@ -115,8 +116,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
       {isMobile ? (
         <div className="flex items-center gap-3 px-2 mb-2">
           <div className={`w-10 h-10 relative rounded-full flex-shrink-0 transition-all z-10 ${frameClass}`}>
-            {points >= 300 && (
-              <div className="absolute -inset-1 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-sm opacity-50 animate-pulse -z-10"></div>
+            {showGlow && (
+              <div className={getGlowClass('compact')}></div>
             )}
             <div className="w-full h-full relative rounded-full overflow-hidden bg-neutral-800">
               {profile?.avatar_url ? (
@@ -142,8 +143,8 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
         >
         <div className="relative">
           <div className={`w-8 h-8 relative rounded-full flex-shrink-0 transition-all z-10 ${frameClass}`}>
-            {points >= 300 && (
-              <div className="absolute -inset-1 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-sm opacity-50 animate-pulse -z-10"></div>
+            {showGlow && (
+              <div className={getGlowClass('compact')}></div>
             )}
             <div className="w-full h-full relative rounded-full overflow-hidden bg-neutral-800">
               {profile?.avatar_url ? (
@@ -181,8 +182,15 @@ export default function AuthButton({ isMobile = false }: { isMobile?: boolean } 
                   </div>
                 )}
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold text-white truncate">{profile?.username || 'Профиль'}</span>
+              <div className="flex flex-col min-w-0 gap-0.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-bold text-white truncate">{profile?.username || 'Профиль'}</span>
+                  {title && (
+                    <span className="px-1.5 py-0.5 bg-[#34d399] text-[#121212] text-[9px] rounded-full font-bold uppercase tracking-wide flex-shrink-0">
+                      {title}
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-neutral-500">Вы вошли в аккаунт</span>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { awardXp, syncPortalAchievements } from '@/lib/gamification';
 
 export async function POST(request: Request) {
   try {
@@ -102,6 +103,9 @@ export async function POST(request: Request) {
         },
       },
     });
+
+    await awardXp(session.user.id as string, 25);
+    await syncPortalAchievements(session.user.id as string);
 
     return NextResponse.json({
       success: true,

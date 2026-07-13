@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { awardXp, syncPortalAchievements } from '@/lib/gamification'
 
 export async function submitReview(formData: FormData) {
   const session = await auth()
@@ -38,6 +39,9 @@ export async function submitReview(formData: FormData) {
       await prisma.reviews.create({
         data: { user_id: user.id, item_id: itemId, item_type: itemType, rating, content: reviewText || null, item_title: itemTitle, item_artist: itemArtist, item_cover: itemCover }
       })
+      // XP и достижения начисляются только за новую рецензию, не за редактирование
+      await awardXp(user.id, 15)
+      await syncPortalAchievements(user.id)
     }
 
     revalidatePath(`/release/${itemId}`)

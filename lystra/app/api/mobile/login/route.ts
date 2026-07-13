@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { awardXp, unlockAchievement } from '@/lib/gamification';
 
 export async function POST(request: Request) {
   try {
@@ -21,6 +22,12 @@ export async function POST(request: Request) {
     const passwordsMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordsMatch) {
       return NextResponse.json({ message: 'Неверные учетные данные' }, { status: 401 });
+    }
+
+    // Разовый бонус за единый профиль: тот же аккаунт подключён и на портале, и в приложении
+    const newlyLinked = await unlockAchievement(user.id, 'mobile_connected');
+    if (newlyLinked) {
+      await awardXp(user.id, 10);
     }
 
     // Генерируем токен на 30 дней
