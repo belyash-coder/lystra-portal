@@ -1,7 +1,6 @@
 import Link from "next/link";
 import StreamPlayer from "@/components/StreamPlayer";
 import { prisma } from "@/lib/prisma";
-import { Play } from "lucide-react";
 import CustomAudioPlayer from "@/components/CustomAudioPlayer";
 import { LikeButton } from '@/components/LikeButton'
 import { ReviewComments } from '@/components/ReviewComments'
@@ -179,25 +178,11 @@ export default async function HomePage({
                         : getPublicUrl('release_covers', release?.cover_path);
 
                       return (
-                        <div 
-                          key={track.id} 
-                          tabIndex={0}
-                          className="group block outline-none"
-                        >
-                          <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800 cursor-pointer">
-                            {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 group-focus:scale-105 transition-transform duration-300" />}
-                            <Link 
-                              href={`/release/${release?.id}`}
-                              className="absolute inset-0 bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]"
-                            >
-                              <div className="w-12 h-12 rounded-full bg-[#a78bfa]/90 flex items-center justify-center text-black">
-                                <Play className="w-6 h-6 ml-1" fill="currentColor" />
-                              </div>
-                            </Link>
+                        <Link href={`/release/${release?.id}`} key={track.id} className="group cursor-pointer block">
+                          <div className="relative aspect-square overflow-hidden rounded-lg mb-3 bg-neutral-800">
+                            {coverUrl && <img src={coverUrl} alt={track.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />}
                           </div>
-                          <Link href={`/release/${release?.id}`} className="block focus:outline-none">
-                            <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] group-focus:text-[#a78bfa] transition-colors">{track.title}</h3>
-                          </Link>
+                          <h3 className="font-semibold text-sm text-white truncate group-hover:text-[#a78bfa] transition-colors">{track.title}</h3>
                           <p className="text-xs text-neutral-400 truncate">{artist?.stage_name || "Неизвестный артист"}</p>
                           {release?.genre && (
                             <div className="mt-1.5">
@@ -206,7 +191,7 @@ export default async function HomePage({
                               </span>
                             </div>
                           )}
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>
