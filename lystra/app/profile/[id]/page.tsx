@@ -11,6 +11,8 @@ import { ChatWidgetLauncher } from '@/components/ChatWidgetLauncher';
 import { ChatList } from '@/components/ChatList';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getFrameClass, getGlowClass, hasGlow } from '@/lib/levelTiers';
+import { getAchievementMeta } from '@/lib/achievements';
 
 export const revalidate = 0;
 
@@ -74,15 +76,8 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
 
   // 1. Статистика и рамки (теперь базируется на XP, так как user_stats удалена)
   const totalActivity = profile.xp || 0;
-  
-  let ringClasses = "border-2 border-transparent";
-  if (totalActivity >= 300) {
-    ringClasses = "p-1.5 bg-gradient-to-tr from-[#a78bfa] via-[#34d399] to-[#a78bfa] shadow-[0_0_0_4px_#121212,0_0_0_6px_#a78bfa]";
-  } else if (totalActivity >= 100) {
-    ringClasses = "border-4 border-[#34d399] shadow-[0_0_15px_rgba(52,211,153,0.3)]";
-  } else if (totalActivity >= 28) {
-    ringClasses = "border-2 border-[#a78bfa] ring-4 ring-[#121212] ring-offset-1 ring-offset-[#a78bfa]";
-  }
+  const ringClasses = getFrameClass(totalActivity, 'large');
+  const showGlow = hasGlow(totalActivity);
 
   // 2. Активное звание (берется напрямую из колонки title в profiles)
   let activeTitle = null;
@@ -92,12 +87,15 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
 
   // 3. Значки/медали из таблицы achievements
   const userAchievements = await prisma.achievements.findMany({ where: { user_id: targetProfileId } });
-  const medals = userAchievements.map(a => ({
-    id: a.id.toString(),
-    name: a.achievement_name,
-    description: "Достижение разблокировано",
-    icon_name: 'star' // Дефолтная иконка, так как справочника иконок больше нет
-  }));
+  const medals = userAchievements.map(a => {
+    const meta = getAchievementMeta(a.achievement_name);
+    return {
+      id: a.id.toString(),
+      name: meta.title,
+      description: meta.description,
+      Icon: meta.icon,
+    };
+  });
 
   let isFollowing = false;
   let initialMessages: any[] = [];
@@ -204,8 +202,8 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
         
         <section className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 bg-white/5 p-5 md:p-8 rounded-2xl border border-white/10 relative">
           <div className={`w-24 h-24 md:w-32 md:h-32 relative rounded-full flex-shrink-0 transition-all z-10 ${ringClasses}`}>
-            {totalActivity >= 300 && (
-              <div className="absolute -inset-3 bg-gradient-to-tr from-[#a78bfa] to-[#34d399] rounded-full blur-xl opacity-50 animate-pulse -z-10"></div>
+            {showGlow && (
+              <div className={getGlowClass('large')}></div>
             )}
             <div className="w-full h-full relative rounded-full overflow-hidden bg-gray-800">
               {profile?.avatar_url ? (
@@ -313,9 +311,9 @@ export default async function DynamicProfilePage({ params }: { params: Promise<{
               <div className="mt-4 pt-4 border-t border-white/10">
                 <p className="text-[10px] text-neutral-500 mb-2 uppercase tracking-widest font-semibold">Награды</p>
                 <div className="flex flex-wrap gap-3">
-                  {medals.map((medal: any) => (
+                  {medals.map((medal) => (
                     <div key={medal.id} className="group relative flex items-center justify-center w-11 h-11 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-[#a78bfa]/50 hover:-translate-y-1 hover:shadow-[0_4px_12px_rgba(167,139,250,0.15)] transition-all duration-300 cursor-help">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                      <medal.Icon className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" strokeWidth={2} />
                       <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-10 w-max max-w-[200px] translate-y-2 group-hover:translate-y-0">
                         <div className="bg-[#121212] border border-white/10 text-white text-xs py-2 px-3 rounded-xl shadow-2xl relative">
                           <p className="font-bold text-[#a78bfa]">{medal.name}</p>

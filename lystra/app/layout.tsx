@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import Script from "next/script";
 import "./globals.css";
@@ -6,12 +6,21 @@ import AuthButton from "@/components/AuthButton";
 import MobileMenu from "@/components/MobileMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChatProvider } from "@/components/ChatProvider";
-import GlobalPlayer from "@/components/GlobalPlayer"; 
+import GlobalPlayer from "@/components/GlobalPlayer";
 import SearchNavLink from "@/components/SearchNavLink"; // <-- ИМПОРТ УМНОЙ ССЫЛКИ ПОИСКА
 
 export const metadata: Metadata = {
   title: "LYSTRA",
   description: "Музыкальный портал для независимых артистов и слушателей",
+  appleWebApp: {
+    capable: true,
+    title: "LYSTRA",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#121212",
 };
 
 export default function RootLayout({

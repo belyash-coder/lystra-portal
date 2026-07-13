@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { syncPortalAchievements } from '@/lib/gamification'
 
 export async function toggleCollection(itemId: string, itemType: string, isAdded: boolean, listType: string = 'collection') {
   const session = await auth()
@@ -21,6 +22,8 @@ export async function toggleCollection(itemId: string, itemType: string, isAdded
       await prisma.collections.create({
         data: { user_id: user.id, item_id: itemId, item_type: itemType, list_type: listType }
       })
+      // Медали за коллекцию не дают XP, только сами достижения
+      await syncPortalAchievements(user.id)
     }
 
     revalidatePath(`/${itemType}/${itemId}`)

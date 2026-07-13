@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Play, Music } from 'lucide-react'
+import { Music } from 'lucide-react'
 
 export function FollowingTrackCard({ track }: { track: any }) {
   const profile = track.profiles;
@@ -57,9 +57,6 @@ export function FollowingTrackCard({ track }: { track: any }) {
            ) : (
              <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-500">Н/Д</div>
            )}
-           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-             <Play className="w-5 h-5 text-[#a78bfa] ml-0.5" fill="currentColor" />
-           </div>
         </Link>
 
         <div className="flex-1 min-w-0">
