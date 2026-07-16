@@ -45,10 +45,17 @@ const REGIONAL_MODIFIERS = new Set([
   'tunisian', 'lebanese', 'iranian',
 ]);
 
+// Некоторые жанры оканчиваются на служебное слово, которое само по себе ничего
+// не говорит о жанре ("Christmas Product", "Boy Band", "Video Game Music") —
+// это внутренняя терминология каталога (условно "продукт для фона", "состав
+// коллектива"), а не описание звучания. Брать его как тег бессмысленно —
+// отрезаем его и берём то, что осталось.
+const GENERIC_TRAILING_WORDS = new Set(['product', 'music', 'band']);
+
 // Список жанров рулетки — это ~6300 нишевых микро-жанров (в духе Every Noise at
-// Once). Если национальности в фразе не было (например "Sad Sierreno") —
-// откатываемся на главное (последнее) слово фразы как более широкий, но всё
-// ещё жанрово точный запасной вариант.
+// Once). Если ни национальности, ни служебного слова в фразе не было (например
+// "Sad Sierreno") — откатываемся на главное (последнее) слово фразы как более
+// широкий, но всё ещё жанрово точный запасной вариант.
 function getFallbackTag(genre: string): string | null {
   const trimmed = genre.trim();
   const lower = trimmed.toLowerCase();
@@ -65,6 +72,12 @@ function getFallbackTag(genre: string): string | null {
 
   if (REGIONAL_MODIFIERS.has(words[0].toLowerCase())) {
     return words.slice(1).join(' ');
+  }
+
+  const lastWord = words[words.length - 1].toLowerCase();
+  if (GENERIC_TRAILING_WORDS.has(lastWord)) {
+    const rest = words.slice(0, -1).join(' ');
+    return rest || null;
   }
 
   return words[words.length - 1];
