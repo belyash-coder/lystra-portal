@@ -17,7 +17,7 @@ interface Candidate {
 async function fetchLastfmCandidates(genre: string): Promise<Candidate[]> {
   if (!LASTFM_API_KEY) return [];
   try {
-    const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(genre)}&api_key=${LASTFM_API_KEY}&format=json&limit=30`;
+    const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(genre)}&api_key=${LASTFM_API_KEY}&format=json&limit=50`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
@@ -36,7 +36,10 @@ async function fetchLastfmCandidates(genre: string): Promise<Candidate[]> {
 
 async function findDeezerPreview(candidate: Candidate): Promise<any | null> {
   try {
-    const q = `artist:"${candidate.artist}" track:"${candidate.name}"`;
+    // Обычный текстовый поиск вместо строгого artist:"" track:"" — у Deezer и
+    // Last.fm написание артиста/трека может немного отличаться (feat., ремастеры
+    // и т.п.), из-за чего точное совпадение часто не находилось вообще.
+    const q = `${candidate.artist} ${candidate.name}`;
     const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=1`);
     if (!res.ok) return null;
     const data = await res.json();
@@ -61,7 +64,7 @@ export async function GET(request: Request) {
 
     // Перемешиваем (чтобы при повторных прокрутках одного жанра выпадали разные
     // треки) и берём запас кандидатов — не у всех найдётся играбельное превью.
-    const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 20);
+    const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 30);
     const resolved = await Promise.all(shuffled.map(findDeezerPreview));
     const validTracks = resolved.filter((t): t is any => t !== null).slice(0, 10);
 
