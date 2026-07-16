@@ -80,7 +80,18 @@ export async function POST(request: Request) {
         data: {
           telegram_id: telegramId,
           username,
+          first_name: tgUser.first_name || null,
           avatar_url: tgUser.photo_url || null,
+        },
+      });
+    } else {
+      // Синхронизируем имя и аватар с текущими данными Telegram при каждом входе
+      // (пользователь мог сменить имя или фото профиля).
+      profile = await prisma.profiles.update({
+        where: { id: profile.id },
+        data: {
+          first_name: tgUser.first_name || profile.first_name,
+          avatar_url: tgUser.photo_url || profile.avatar_url,
         },
       });
     }
@@ -92,6 +103,7 @@ export async function POST(request: Request) {
       profile: {
         id: profile.id,
         username: profile.username,
+        first_name: profile.first_name,
         avatar_url: profile.avatar_url,
       },
     });
