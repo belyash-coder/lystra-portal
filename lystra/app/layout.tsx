@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import Script from "next/script";
 import "./globals.css";
 import AuthButton from "@/components/AuthButton";
 import MobileMenu from "@/components/MobileMenu";
@@ -30,12 +29,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className="scroll-smooth" suppressHydrationWarning>
-      <head>
-        <Script 
-          src="https://telegram.org/js/telegram-web-app.js" 
-          strategy="beforeInteractive" 
-        />
-      </head>
       <body className="bg-[#121212] text-white min-h-screen flex flex-col font-sans overflow-x-hidden">
         
         <ChatProvider>

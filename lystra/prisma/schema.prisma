@@ -56,8 +56,9 @@ model messages {
 
 model profiles {
   id                                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                                   String         @unique
-  password_hash                           String
+  email                                   String?        @unique
+  password_hash                           String?
+  telegram_id                             BigInt?        @unique
   username                                String         @unique
   avatar_url                              String?
   bio                                     String?
