@@ -60,6 +60,7 @@ model profiles {
   password_hash                           String?
   telegram_id                             BigInt?        @unique
   username                                String         @unique
+  first_name                              String?
   avatar_url                              String?
   bio                                     String?
   favorite_genres                         String[]

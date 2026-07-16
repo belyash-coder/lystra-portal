@@ -20,6 +20,7 @@ export async function GET(request: Request) {
         id: true,
         email: true,
         username: true,
+        first_name: true,
         avatar_url: true,
         bio: true,
         favorite_genres: true,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { classifyGenreToDeezerId } from '@/lib/deezerGenreClassifier';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,50 +10,34 @@ export async function GET(request: Request) {
   if (!genre) return NextResponse.json({ error: 'Жанр не указан', tracks: [] }, { status: 400 });
 
   try {
-    // 1. Ищем плейлисты по жанру напрямую в Deezer
-    const query = encodeURIComponent(genre);
-    const searchRes = await fetch(`https://api.deezer.com/search/playlist?q=${query}&limit=10`);
-    const searchData = await searchRes.json();
+    const deezerGenreId = classifyGenreToDeezerId(genre);
 
-    const playlists = searchData.data || [];
-    if (playlists.length === 0) {
-      return NextResponse.json({ message: 'Плейлисты не найдены', tracks: [] });
+    // Жанр слишком нишевый, чтобы уверенно сопоставить его с реальной категорией
+    // Deezer — лучше честно ничего не найти, чем подсунуть трек не в тему.
+    if (deezerGenreId === null) {
+      return NextResponse.json({ message: 'Треки для этого жанра не найдены', tracks: [] });
     }
 
-    // 2. Ищем рабочий плейлист и вытягиваем треки
-    let rawTracks: any[] = [];
-    let finalPlaylistName = '';
+    const chartRes = await fetch(`https://api.deezer.com/chart/${deezerGenreId}/tracks?limit=50`);
+    const chartData = await chartRes.json();
+    const items: any[] = chartData.data || chartData.tracks?.data || [];
 
-    for (const playlist of playlists) {
-      const tracksRes = await fetch(`https://api.deezer.com/playlist/${playlist.id}/tracks?limit=50`);
-      const tracksData = await tracksRes.json();
-      
-      // Сразу отсеиваем треки без превью (у Deezer они обычно есть)
-      const validItems = (tracksData.data || []).filter((track: any) => track.preview);
-
-      if (validItems.length > 0) {
-        // Перемешиваем и берем с запасом до 10 треков
-        rawTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 10); 
-        finalPlaylistName = playlist.title;
-        if (rawTracks.length >= 6) break; // Если нашли хороший массив треков, останавливаемся
-      }
-    }
-
-    if (rawTracks.length === 0) {
+    const validItems = items.filter((track: any) => track.preview);
+    if (validItems.length === 0) {
       return NextResponse.json({ message: 'Треки с превью не найдены', tracks: [] });
     }
 
-    // 3. Форматируем результат для фронтенда (отдаем все найденные треки, до 10 шт)
+    const rawTracks = validItems.sort(() => Math.random() - 0.5).slice(0, 10);
+
     const finalTracks = rawTracks.map((track: any) => ({
       id: String(track.id),
       title: track.title,
       artist: track.artist?.name || 'Неизвестный исполнитель',
       cover: track.album?.cover_xl || track.album?.cover_big || track.album?.cover || null,
-      audio: track.preview
+      audio: track.preview,
     }));
 
-    return NextResponse.json({ playlist: finalPlaylistName, tracks: finalTracks });
-
+    return NextResponse.json({ playlist: genre, tracks: finalTracks });
   } catch (error: any) {
     console.error('Ошибка Deezer API:', error);
     return NextResponse.json({ error: 'Внутренняя ошибка сервера', tracks: [] }, { status: 500 });
