@@ -15,7 +15,26 @@ export async function GET(request: Request) {
     const decoded: any = jwt.verify(token, SECRET);
 
     const profile = await prisma.profiles.findUnique({
-      where: { id: decoded.id }
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        avatar_url: true,
+        bio: true,
+        favorite_genres: true,
+        xp: true,
+        level: true,
+        total_spins: true,
+        total_searches: true,
+        timezone: true,
+        last_active_at: true,
+        active_title_id: true,
+        role: true,
+        title: true,
+        created_at: true,
+        // password_hash сознательно исключён — незачем отдавать его клиенту
+      }
     });
 
     const dbAchievements = await prisma.achievements.findMany({
