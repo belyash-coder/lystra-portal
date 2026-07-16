@@ -14,6 +14,16 @@ function candidateKey(c: Candidate): string {
   return `${c.artist.toLowerCase()}||${c.name.toLowerCase()}`;
 }
 
+function dedupeById(tracks: any[], excludeIds: Set<string> = new Set()): any[] {
+  const seen = new Set(excludeIds);
+  return tracks.filter((t) => {
+    const id = String(t.id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 // Список жанров рулетки — это ~6300 нишевых микро-жанров (в духе Every Noise at
 // Once). Многие из них — гипер-конкретные составные фразы ("Irish Post-Punk",
 // "Sad Sierreno"), которых как единого тега на Last.fm часто просто не
@@ -85,37 +95,35 @@ export async function GET(request: Request) {
     const exactCandidates = await fetchLastfmCandidates(genre);
     exactCandidates.forEach((c) => triedKeys.add(candidateKey(c)));
 
-    let tracks = await resolveTracks(exactCandidates, TARGET_TRACK_COUNT);
+    const exactTracks = dedupeById(await resolveTracks(exactCandidates, TARGET_TRACK_COUNT));
+    const exactIds = new Set(exactTracks.map((t) => String(t.id)));
 
     // По точной фразе жанра нашлось мало треков (или вообще ничего) — добираем
     // до нужного количества по более широкому, но всё ещё жанрово точному тегу
-    // (главное слово фразы), не теряя уже найденное по точному жанру.
-    if (tracks.length < TARGET_TRACK_COUNT) {
-      const fallbackTag = getFallbackTag(genre);
+    // (главное слово фразы), не теряя уже найденное по точному жанру. Честно
+    // сообщаем клиенту, сколько треков откуда, чтобы он мог показать это
+    // пользователю, а не выдавать добор за точное совпадение.
+    let fallbackTracks: any[] = [];
+    let fallbackTag: string | null = null;
+
+    if (exactTracks.length < TARGET_TRACK_COUNT) {
+      fallbackTag = getFallbackTag(genre);
       if (fallbackTag) {
         const fallbackCandidates = (await fetchLastfmCandidates(fallbackTag)).filter(
           (c) => !triedKeys.has(candidateKey(c))
         );
-        const extra = await resolveTracks(fallbackCandidates, TARGET_TRACK_COUNT - tracks.length);
-        tracks = tracks.concat(extra);
+        const extra = await resolveTracks(fallbackCandidates, TARGET_TRACK_COUNT - exactTracks.length);
+        fallbackTracks = dedupeById(extra, exactIds);
       }
     }
 
-    // На случай редкого совпадения одного и того же трека Deezer через разные
-    // теги/написания.
-    const seenIds = new Set<string>();
-    tracks = tracks.filter((t) => {
-      const id = String(t.id);
-      if (seenIds.has(id)) return false;
-      seenIds.add(id);
-      return true;
-    });
+    const allTracks = exactTracks.concat(fallbackTracks);
 
-    if (tracks.length === 0) {
+    if (allTracks.length === 0) {
       return NextResponse.json({ message: 'Треки для этого жанра не найдены', tracks: [] });
     }
 
-    const finalTracks = tracks.map((track: any) => ({
+    const finalTracks = allTracks.map((track: any) => ({
       id: String(track.id),
       title: track.title,
       artist: track.artist?.name || 'Неизвестный исполнитель',
@@ -123,7 +131,12 @@ export async function GET(request: Request) {
       audio: track.preview,
     }));
 
-    return NextResponse.json({ playlist: genre, tracks: finalTracks });
+    return NextResponse.json({
+      playlist: genre,
+      tracks: finalTracks,
+      exactCount: exactTracks.length,
+      fallbackTag: fallbackTracks.length > 0 ? fallbackTag : null,
+    });
   } catch (error: any) {
     console.error('Ошибка при подборе треков:', error);
     return NextResponse.json({ error: 'Внутренняя ошибка сервера', tracks: [] }, { status: 500 });
