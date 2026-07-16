@@ -3,6 +3,13 @@ import genres from '@/data/genres.json';
 
 export const dynamic = 'force-dynamic';
 
+// Intl/toLocaleString('ru-RU', { month: 'short' }) отдаёт именительный падеж
+// ("июль"), а не родительный ("09 июля") — используем явную склонённую форму.
+const MONTHS_GENITIVE_RU = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+
 export async function GET() {
   try {
     const getGenreForDate = (date: Date) => {
@@ -20,9 +27,8 @@ export async function GET() {
       pastDate.setDate(today.getDate() - i);
       
       const day = pastDate.getDate().toString().padStart(2, '0');
-      // Получаем короткое название месяца на русском
-      const month = pastDate.toLocaleString('ru-RU', { month: 'short' }).replace('.', '');
-      
+      const month = MONTHS_GENITIVE_RU[pastDate.getMonth()];
+
       history.push({
         date: `${day} ${month}`,
         genre: getGenreForDate(pastDate)
