@@ -73,7 +73,12 @@ export async function GET(request: Request) {
   const host = request.headers.get('host');
   const proto = request.headers.get('x-forwarded-proto') || 'https';
   const origin = host ? `${proto}://${host}` : null;
-  const photoUrl = origin ? `${origin}/api/og/genre?genre=${encodeURIComponent(genre)}` : null;
+  // Cache-buster: URL для одного и того же жанра дня иначе всегда одинаковый,
+  // и Telegram может отдать ранее закешированную по этому URL картинку вместо
+  // свежей (актуально при повторных ручных запусках/тестах в один день).
+  const photoUrl = origin
+    ? `${origin}/api/og/genre?genre=${encodeURIComponent(genre)}&t=${Date.now()}`
+    : null;
   if (!photoUrl) {
     return NextResponse.json({ error: 'Не удалось определить домен для картинки' }, { status: 500 });
   }
