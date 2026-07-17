@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getGenreForDate } from '@/lib/dailyGenre';
+import { getGenreForDate, toTitleCase } from '@/lib/dailyGenre';
 import { buildGenreDeepLink } from '@/lib/telegramDeepLink';
 
 export const dynamic = 'force-dynamic';
@@ -65,7 +65,10 @@ export async function GET(request: Request) {
   }
 
   const genre = getGenreForDate(new Date());
+  // Деталь: startapp-ссылка кодирует "сырой" жанр как он есть в genres.json (важно
+  // для точного совпадения при поиске треков) — Title Case только для отображения.
   const deepLink = buildGenreDeepLink(genre);
+  const displayGenre = toTitleCase(genre);
 
   const host = request.headers.get('host');
   const proto = request.headers.get('x-forwarded-proto') || 'https';
@@ -78,7 +81,7 @@ export async function GET(request: Request) {
   const appLink = deepLink
     ? `<a href="${deepLink}">LYSTRA</a>`
     : 'LYSTRA';
-  const caption = `🎲 Жанр дня: <b>${escapeHtml(genre)}</b>\n\nЗаходи в ${appLink} и слушай подборку!`;
+  const caption = `🎲 Жанр дня: <b>${escapeHtml(displayGenre)}</b>\n\nЗаходи в ${appLink} и слушай подборку!`;
 
   const recipients = await prisma.profiles.findMany({
     where: { telegram_id: { not: null }, notify_daily_genre: true },
