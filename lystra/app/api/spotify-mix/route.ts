@@ -52,10 +52,11 @@ const REGIONAL_MODIFIERS = new Set([
 // отрезаем его и берём то, что осталось.
 const GENERIC_TRAILING_WORDS = new Set(['product', 'music', 'band']);
 
-// Жанры вида "musica mexicana"/"musica mexiquense"/"canzone italiana" называют
-// национальность на языке этой страны, а не по-английски — как отдельный тег
-// на Last.fm такое слово почти не встречается. Нормализуем к обычному
-// англоязычному определению страны, под которым там реально много треков.
+// Жанры вида "musica mexicana"/"musica mexiquense"/"canzone italiana"/"blues
+// latinoamericano" называют национальность на языке этой страны, а не
+// по-английски — как отдельный тег на Last.fm такое слово почти не
+// встречается. Нормализуем к обычному англоязычному определению страны, под
+// которым там реально много треков.
 const DEMONYM_NORMALIZE: Record<string, string> = {
   mexicano: 'mexican',
   mexicana: 'mexican',
@@ -77,7 +78,14 @@ const DEMONYM_NORMALIZE: Record<string, string> = {
   colombiana: 'colombian',
   quebecois: 'canadian',
   catala: 'spanish',
+  latinoamericano: 'latin',
+  latinoamericana: 'latin',
 };
+
+// "Musica"/"musique"/"lagu" и т.п. — слово "музыка"/"песня" на другом языке в
+// начале фразы ("musica mexicana", "musique quebecois"), само по себе оно
+// ничего не говорит о жанре — вся суть в слове после него.
+const GENERIC_LEADING_WORDS = new Set(['musica', 'musique', 'lagu', 'canzone', 'chanson', 'musik', 'muziek', 'nhac']);
 
 // Список жанров рулетки — это ~6300 нишевых микро-жанров (в духе Every Noise at
 // Once). Если ни национальности, ни служебного слова в фразе не было (например
@@ -97,7 +105,19 @@ function getFallbackTag(genre: string): string | null {
   const words = trimmed.split(/\s+/);
   if (words.length <= 1) return null;
 
-  if (REGIONAL_MODIFIERS.has(words[0].toLowerCase())) {
+  const firstWord = words[0].toLowerCase();
+
+  // "musica X" / "musique X" — само слово "музыка" ничего не значит, отрезаем
+  // его; если то, что осталось — иноязычное обозначение страны, нормализуем.
+  if (GENERIC_LEADING_WORDS.has(firstWord)) {
+    const rest = words.slice(1);
+    if (rest.length === 1 && DEMONYM_NORMALIZE[rest[0].toLowerCase()]) {
+      return DEMONYM_NORMALIZE[rest[0].toLowerCase()];
+    }
+    return rest.join(' ') || null;
+  }
+
+  if (REGIONAL_MODIFIERS.has(firstWord)) {
     return words.slice(1).join(' ');
   }
 
@@ -107,8 +127,13 @@ function getFallbackTag(genre: string): string | null {
     return rest || null;
   }
 
-  if (DEMONYM_NORMALIZE[lastWord]) {
-    return DEMONYM_NORMALIZE[lastWord];
+  // Национальность в конце фразы ("Blues Latinoamericano", "Post-Punk
+  // Latinoamericano") — отрезаем её и оставляем настоящий жанр перед ней,
+  // а не наоборот.
+  if (REGIONAL_MODIFIERS.has(lastWord) || DEMONYM_NORMALIZE[lastWord]) {
+    const rest = words.slice(0, -1).join(' ');
+    if (rest) return rest;
+    return DEMONYM_NORMALIZE[lastWord] || lastWord;
   }
 
   return words[words.length - 1];
