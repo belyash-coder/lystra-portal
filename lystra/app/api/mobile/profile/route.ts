@@ -99,9 +99,31 @@ export async function PUT(request: Request) {
     if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
     if (notify_daily_genre !== undefined) updateData.notify_daily_genre = notify_daily_genre;
 
+    // telegram_id — BigInt, JSON.stringify не умеет его сериализовать; явный select
+    // (как в GET) исключает его из ответа вместо того, чтобы отдавать всю строку как есть.
     const updatedProfile = await prisma.profiles.update({
       where: { id: decoded.id },
-      data: updateData
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        first_name: true,
+        avatar_url: true,
+        bio: true,
+        favorite_genres: true,
+        xp: true,
+        level: true,
+        total_spins: true,
+        total_searches: true,
+        notify_daily_genre: true,
+        timezone: true,
+        last_active_at: true,
+        active_title_id: true,
+        role: true,
+        title: true,
+        created_at: true,
+      },
     });
 
     return NextResponse.json(updatedProfile);
