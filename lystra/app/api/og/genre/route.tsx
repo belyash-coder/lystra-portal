@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { getGenreForDate } from '@/lib/dailyGenre';
+import { getGenreForDate, toTitleCase } from '@/lib/dailyGenre';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ const MINT = '#34d399';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const genre = searchParams.get('genre') || getGenreForDate(new Date());
+  const genre = toTitleCase(searchParams.get('genre') || getGenreForDate(new Date()));
 
   return new ImageResponse(
     (
