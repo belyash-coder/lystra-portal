@@ -42,7 +42,7 @@ const REGIONAL_MODIFIERS = new Set([
   'lithuanian', 'estonian', 'slovak', 'slovenian', 'bulgarian', 'bosnian', 'albanian',
   'macedonian', 'georgian', 'armenian', 'malaysian', 'singaporean', 'taiwanese', 'cambodian',
   'burmese', 'nepali', 'bangladeshi', 'kenyan', 'ghanaian', 'ethiopian', 'moroccan', 'algerian',
-  'tunisian', 'lebanese', 'iranian',
+  'tunisian', 'lebanese', 'iranian', 'czsk', 'arab', 'texas',
 ]);
 
 // Некоторые жанры оканчиваются на служебное слово, которое само по себе ничего
@@ -51,6 +51,33 @@ const REGIONAL_MODIFIERS = new Set([
 // коллектива"), а не описание звучания. Брать его как тег бессмысленно —
 // отрезаем его и берём то, что осталось.
 const GENERIC_TRAILING_WORDS = new Set(['product', 'music', 'band']);
+
+// Жанры вида "musica mexicana"/"musica mexiquense"/"canzone italiana" называют
+// национальность на языке этой страны, а не по-английски — как отдельный тег
+// на Last.fm такое слово почти не встречается. Нормализуем к обычному
+// англоязычному определению страны, под которым там реально много треков.
+const DEMONYM_NORMALIZE: Record<string, string> = {
+  mexicano: 'mexican',
+  mexicana: 'mexican',
+  mexiquense: 'mexican',
+  brasileiro: 'brazilian',
+  brasileira: 'brazilian',
+  americana: 'american',
+  espanol: 'spanish',
+  espanola: 'spanish',
+  chileno: 'chilean',
+  chilena: 'chilean',
+  argentino: 'argentinian',
+  argentina: 'argentinian',
+  francais: 'french',
+  francaise: 'french',
+  italiano: 'italian',
+  italiana: 'italian',
+  colombiano: 'colombian',
+  colombiana: 'colombian',
+  quebecois: 'canadian',
+  catala: 'spanish',
+};
 
 // Список жанров рулетки — это ~6300 нишевых микро-жанров (в духе Every Noise at
 // Once). Если ни национальности, ни служебного слова в фразе не было (например
@@ -78,6 +105,10 @@ function getFallbackTag(genre: string): string | null {
   if (GENERIC_TRAILING_WORDS.has(lastWord)) {
     const rest = words.slice(0, -1).join(' ');
     return rest || null;
+  }
+
+  if (DEMONYM_NORMALIZE[lastWord]) {
+    return DEMONYM_NORMALIZE[lastWord];
   }
 
   return words[words.length - 1];
