@@ -69,6 +69,7 @@ model profiles {
   total_spins                             Int?           @default(0)
   total_searches                          Int?           @default(0)
   push_token                              String?
+  notify_daily_genre                      Boolean        @default(true)
   timezone                                String?
   last_active_at                          DateTime?      @db.Timestamptz(6)
   active_title_id                         String?

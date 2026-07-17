@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         level: true,
         total_spins: true,
         total_searches: true,
+        notify_daily_genre: true,
         timezone: true,
         last_active_at: true,
         active_title_id: true,
@@ -68,7 +69,7 @@ export async function PUT(request: Request) {
     const decoded: any = jwt.verify(token, SECRET);
 
     const body = await request.json();
-    const { username, bio, avatar_base64, avatar_ext, clear_avatar } = body;
+    const { username, bio, avatar_base64, avatar_ext, clear_avatar, notify_daily_genre } = body;
 
     let avatarUrl = undefined;
 
@@ -96,6 +97,7 @@ export async function PUT(request: Request) {
     if (username !== undefined) updateData.username = username;
     if (bio !== undefined) updateData.bio = bio;
     if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
+    if (notify_daily_genre !== undefined) updateData.notify_daily_genre = notify_daily_genre;
 
     const updatedProfile = await prisma.profiles.update({
       where: { id: decoded.id },
