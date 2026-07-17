@@ -24,15 +24,62 @@ function dedupeById(tracks: any[], excludeIds: Set<string> = new Set()): any[] {
   });
 }
 
+// Многие жанры рулетки начинаются с национальности/региона ("Spanish
+// Progressive Rock", "Irish Post-Punk", "UK Drum And Bass") — это ~22% списка.
+// Просто брать последнее слово фразы теряет стилевые слова вроде "Progressive"
+// или "Post", которые кардинально меняют суть жанра. Поэтому сначала пробуем
+// снять только национальность/регион, сохранив всё остальное как есть.
+const TWO_WORD_REGIONAL = ['south african', 'south korean', 'new zealand', 'hong kong', 'sri lankan', 'costa rican', 'puerto rican'];
+const REGIONAL_MODIFIERS = new Set([
+  'spanish', 'irish', 'british', 'uk', 'us', 'american', 'korean', 'japanese', 'chinese',
+  'german', 'french', 'italian', 'canadian', 'australian', 'mexican', 'brazilian',
+  'swedish', 'norwegian', 'danish', 'finnish', 'dutch', 'russian', 'indian', 'african',
+  'latin', 'nordic', 'scandinavian', 'european', 'asian', 'scottish', 'welsh', 'english',
+  'polish', 'portuguese', 'greek', 'turkish', 'egyptian', 'israeli', 'argentine', 'argentinian',
+  'colombian', 'peruvian', 'chilean', 'cuban', 'jamaican', 'nigerian', 'indonesian', 'thai',
+  'vietnamese', 'filipino', 'pinoy', 'pakistani', 'nz', 'icelandic', 'belgian', 'austrian',
+  'swiss', 'czech', 'hungarian', 'romanian', 'ukrainian', 'croatian', 'serbian', 'latvian',
+  'lithuanian', 'estonian', 'slovak', 'slovenian', 'bulgarian', 'bosnian', 'albanian',
+  'macedonian', 'georgian', 'armenian', 'malaysian', 'singaporean', 'taiwanese', 'cambodian',
+  'burmese', 'nepali', 'bangladeshi', 'kenyan', 'ghanaian', 'ethiopian', 'moroccan', 'algerian',
+  'tunisian', 'lebanese', 'iranian',
+]);
+
+// Некоторые жанры оканчиваются на служебное слово, которое само по себе ничего
+// не говорит о жанре ("Christmas Product", "Boy Band", "Video Game Music") —
+// это внутренняя терминология каталога (условно "продукт для фона", "состав
+// коллектива"), а не описание звучания. Брать его как тег бессмысленно —
+// отрезаем его и берём то, что осталось.
+const GENERIC_TRAILING_WORDS = new Set(['product', 'music', 'band']);
+
 // Список жанров рулетки — это ~6300 нишевых микро-жанров (в духе Every Noise at
-// Once). Многие из них — гипер-конкретные составные фразы ("Irish Post-Punk",
-// "Sad Sierreno"), которых как единого тега на Last.fm часто просто не
-// существует, хотя главное слово в них ("post-punk", "sierreno") — вполне
-// ходовой тег. Используем его как более широкий, но всё ещё жанрово точный
-// запасной вариант, когда по точной фразе треков мало или нет вообще.
+// Once). Если ни национальности, ни служебного слова в фразе не было (например
+// "Sad Sierreno") — откатываемся на главное (последнее) слово фразы как более
+// широкий, но всё ещё жанрово точный запасной вариант.
 function getFallbackTag(genre: string): string | null {
-  const words = genre.trim().split(/\s+/);
+  const trimmed = genre.trim();
+  const lower = trimmed.toLowerCase();
+
+  for (const phrase of TWO_WORD_REGIONAL) {
+    if (lower.startsWith(phrase + ' ')) {
+      const rest = trimmed.slice(phrase.length).trim();
+      return rest || null;
+    }
+  }
+
+  const words = trimmed.split(/\s+/);
   if (words.length <= 1) return null;
+
+  if (REGIONAL_MODIFIERS.has(words[0].toLowerCase())) {
+    return words.slice(1).join(' ');
+  }
+
+  const lastWord = words[words.length - 1].toLowerCase();
+  if (GENERIC_TRAILING_WORDS.has(lastWord)) {
+    const rest = words.slice(0, -1).join(' ');
+    return rest || null;
+  }
+
   return words[words.length - 1];
 }
 
