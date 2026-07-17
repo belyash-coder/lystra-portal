@@ -17,14 +17,25 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function sendTelegramMessage(chatId: bigint, text: string, deepLink: string | null): Promise<'ok' | 'blocked' | 'error'> {
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function sendTelegramPhoto(
+  chatId: bigint,
+  photoUrl: string,
+  caption: string,
+  deepLink: string | null
+): Promise<'ok' | 'blocked' | 'error'> {
   try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId.toString(),
-        text,
+        photo: photoUrl,
+        caption,
+        parse_mode: 'HTML',
         reply_markup: deepLink
           ? { inline_keyboard: [[{ text: 'Слушать', url: deepLink }]] }
           : undefined,
@@ -55,7 +66,19 @@ export async function GET(request: Request) {
 
   const genre = getGenreForDate(new Date());
   const deepLink = buildGenreDeepLink(genre);
-  const text = `🎲 Жанр дня: ${genre}\n\nЗаходи в LYSTRA и слушай подборку!`;
+
+  const host = request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const origin = host ? `${proto}://${host}` : null;
+  const photoUrl = origin ? `${origin}/api/og/genre?genre=${encodeURIComponent(genre)}` : null;
+  if (!photoUrl) {
+    return NextResponse.json({ error: 'Не удалось определить домен для картинки' }, { status: 500 });
+  }
+
+  const appLink = deepLink
+    ? `<a href="${deepLink}">LYSTRA</a>`
+    : 'LYSTRA';
+  const caption = `🎲 Жанр дня: <b>${escapeHtml(genre)}</b>\n\nЗаходи в ${appLink} и слушай подборку!`;
 
   const recipients = await prisma.profiles.findMany({
     where: { telegram_id: { not: null }, notify_daily_genre: true },
@@ -70,7 +93,7 @@ export async function GET(request: Request) {
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
     const results = await Promise.all(
-      batch.map((r) => sendTelegramMessage(r.telegram_id as bigint, text, deepLink))
+      batch.map((r) => sendTelegramPhoto(r.telegram_id as bigint, photoUrl, caption, deepLink))
     );
     results.forEach((result, idx) => {
       if (result === 'ok') sent += 1;
