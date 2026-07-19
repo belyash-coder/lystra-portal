@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #121212;
+  --color-surface: #1a1a24;
+  --color-surface-hover: #23232f;
+  --color-lavender: #b39ddb;
+  --color-lavender-hover: #9575cd;
+  --color-mint: #69f0ae;
+  --color-mint-hover: #4ade80;
+  --color-amber: #ffca28;
+  --color-text-main: #ffffff;
+  --color-text-muted: #a0a0a0;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-main);
+  }
+}

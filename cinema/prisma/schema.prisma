@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WatchStatus {
+  PLANNED
+  WATCHING
+  WATCHED
+}
+
+model Profile {
+  id         String   @id @default(uuid())
+  telegramId BigInt   @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+  avatarUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  addedMovies  Movie[]       @relation("MovieAddedBy")
+  watchEntries WatchEntry[]
+}
+
+model Movie {
+  id            String   @id @default(uuid())
+  tmdbId        Int      @unique
+  title         String
+  originalTitle String?
+  posterPath    String?
+  overview      String?
+  releaseYear   Int?
+  runtime       Int?
+  tmdbRating    Float?
+  genres        String[]
+  addedById     String
+  addedBy       Profile  @relation("MovieAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  watchEntries WatchEntry[]
+
+  @@index([addedById])
+}
+
+model WatchEntry {
+  id        String      @id @default(uuid())
+  profileId String
+  movieId   String
+  status    WatchStatus @default(PLANNED)
+  rating    Int?
+  note      String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  movie   Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, movieId])
+  @@index([movieId])
+}
