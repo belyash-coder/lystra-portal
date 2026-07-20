@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export const dynamic = 'force-dynamic';
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 
 async function getUserId(req: Request) {
   let userId: string | null = null;
@@ -12,7 +12,7 @@ async function getUserId(req: Request) {
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
-      const decoded: any = jwt.verify(authHeader.split(' ')[1], SECRET);
+      const decoded: any = jwt.verify(authHeader.split(' ')[1], getAuthSecret());
       userId = decoded.id;
     } catch (e) {}
   }

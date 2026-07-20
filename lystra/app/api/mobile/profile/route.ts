@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import fs from 'fs/promises';
 import path from 'path';
-
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +11,7 @@ export async function GET(request: Request) {
     if (!authHeader) return NextResponse.json({ message: 'Нет токена' }, { status: 401 });
 
     const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, SECRET);
+    const decoded: any = jwt.verify(token, getAuthSecret());
 
     const profile = await prisma.profiles.findUnique({
       where: { id: decoded.id },
@@ -66,7 +65,7 @@ export async function PUT(request: Request) {
     if (!authHeader) return NextResponse.json({ message: 'Нет токена' }, { status: 401 });
 
     const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, SECRET);
+    const decoded: any = jwt.verify(token, getAuthSecret());
 
     const body = await request.json();
     const { username, bio, avatar_base64, avatar_ext, clear_avatar, notify_daily_genre } = body;

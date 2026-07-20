@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
-
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +9,7 @@ export async function POST(request: Request) {
     if (!authHeader) return NextResponse.json({ message: 'Нет токена' }, { status: 401 });
 
     const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, SECRET);
+    const decoded: any = jwt.verify(token, getAuthSecret());
 
     const profile = await prisma.profiles.update({
       where: { id: decoded.id },

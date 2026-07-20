@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export const dynamic = 'force-dynamic';
-
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 
 export async function POST(req: Request) {
   try {
@@ -16,7 +15,7 @@ export async function POST(req: Request) {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded: any = jwt.verify(token, SECRET);
+        const decoded: any = jwt.verify(token, getAuthSecret());
         userId = decoded.id;
       } catch (e) {
         // Если токен неверный, просто идем дальше (возможно, это запрос с веб-сайта)

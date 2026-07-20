@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
-
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export async function GET(request: Request) {
   try {
@@ -10,7 +9,7 @@ export async function GET(request: Request) {
     if (!authHeader) return NextResponse.json({ message: 'Нет токена' }, { status: 401 });
 
     const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, SECRET);
+    const decoded: any = jwt.verify(token, getAuthSecret());
 
     // 1. Ищем ID всех друзей пользователя
     const friendsRecords = await prisma.friends.findMany({
