@@ -12,17 +12,13 @@ interface MappedRelease {
   preview?: string;
 }
 
-// ВАЖНО: Deezer нигде официально не документирует, что ID из /genre (список
-// жанров, см. /api/new-releases/genres) и ID из /editorial (лента новых
-// релизов по категориям) — это одно и то же пространство идентификаторов.
-// На практике у их ~20 основных жанров эти ID совпадают (оба списка растут
-// из одной и той же таксономии), но это не гарантировано контрактом API.
-// Если после деплоя фильтр по жанру будет отдавать пустой список для
-// реального genre_id — значит id-пространства разъехались, и здесь нужно
-// явное сопоставление genre_id -> editorial_id.
+// /editorial/{id}/releases существует, но всегда пустой (проверено вживую) —
+// реальная подборка новых релизов по жанру лежит в /editorial/{id}/selection.
+// ID из /genre и /editorial — одно и то же пространство идентификаторов
+// (проверено: например 132 — это Pop в обоих списках).
 async function fetchReleasesFor(editorialId: string | null): Promise<any[]> {
   const id = editorialId || '0';
-  const res = await fetch(`https://api.deezer.com/editorial/${encodeURIComponent(id)}/releases`);
+  const res = await fetch(`https://api.deezer.com/editorial/${encodeURIComponent(id)}/selection`);
   if (!res.ok) throw new Error('Ошибка Deezer API');
   const data = await res.json();
   return data?.data || [];
