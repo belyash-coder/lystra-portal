@@ -23,20 +23,65 @@ interface MappedRelease {
 // реальная подборка новых релизов по жанру лежит в /editorial/{id}/selection.
 // ID из /genre и /editorial — одно и то же пространство идентификаторов
 // (проверено: например 132 — это Pop в обоих списках).
-// НО: /selection — фиксированная курируемая подборка без постраничной
-// подгрузки (index/limit не работают, проверено вживую — "Ещё" грузило одно
-// и то же). Поэтому у неё нет смысла запрашивать вторую страницу — вместо
-// этого источник "chart" (/chart/{id}/albums) отдаёт топ по популярности в
-// жанре с РЕАЛЬНОЙ пагинацией (тоже проверено вживую), но это уже не
-// "новинки", а популярное — смешивает старую классику с новым. Поэтому на
-// фронте это отдельная кнопка "Популярное в жанре", а не бесконечный "Ещё".
-async function fetchReleasesFor(editorialId: string | null, offset: number, limit: number, source: 'selection' | 'chart'): Promise<any[]> {
-  const id = editorialId || '0';
-  const path = source === 'chart' ? `chart/${encodeURIComponent(id)}/albums` : `editorial/${encodeURIComponent(id)}/selection`;
+// НО: /selection на один конкретный жанр — фиксированная курируемая подборка
+// (~10 штук), не подчиняется ни index/offset, ни увеличенному limit (тоже
+// проверено вживую). Для источника "chart" (/chart/{id}/albums) пагинация
+// РЕАЛЬНО работает, но это уже не строго новинки, а топ по популярности —
+// смешивает старую классику с новым (на фронте это отдельная кнопка
+// "Популярное в жанре", а не часть общей подгрузки).
+async function fetchReleasesForGenre(editorialId: string, offset: number, limit: number, source: 'selection' | 'chart'): Promise<any[]> {
+  const path = source === 'chart' ? `chart/${encodeURIComponent(editorialId)}/albums` : `editorial/${encodeURIComponent(editorialId)}/selection`;
   const res = await fetch(`https://api.deezer.com/${path}?index=${offset}&limit=${limit}`);
   if (!res.ok) throw new Error('Ошибка Deezer API');
   const data = await res.json();
   return data?.data || [];
+}
+
+async function fetchAllGenreIds(): Promise<string[]> {
+  try {
+    const res = await fetch('https://api.deezer.com/genre');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.data || []).filter((g: any) => g.id !== 0).map((g: any) => String(g.id));
+  } catch {
+    return [];
+  }
+}
+
+// Без выбранного жанра ("Все") один запрос к /editorial/0/selection тоже
+// даёт лишь ~10 штук — тот же потолок, что и у одного конкретного жанра.
+// Чтобы получить заметно больше материала и подгрузку без повторов, собираем
+// /selection каждого реального жанра параллельно и объединяем с
+// дедупликацией по id альбома — дальше просто режем получившийся массив по
+// offset/limit, это уже настоящая постраничная подгрузка.
+async function fetchAllGenresReleases(): Promise<any[]> {
+  const genreIds = await fetchAllGenreIds();
+  const perGenre = await Promise.all(
+    genreIds.map((id) =>
+      fetch(`https://api.deezer.com/editorial/${encodeURIComponent(id)}/selection`)
+        .then((res) => (res.ok ? res.json() : { data: [] }))
+        .then((data) => data?.data || [])
+        .catch(() => [])
+    )
+  );
+
+  const seen = new Set<string>();
+  const merged: any[] = [];
+  for (const release of perGenre.flat()) {
+    const id = String(release.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(release);
+  }
+  return merged;
+}
+
+async function fetchReleasesFor(editorialId: string | null, offset: number, limit: number, source: 'selection' | 'chart'): Promise<any[]> {
+  if (!editorialId && source === 'selection') {
+    const merged = await fetchAllGenresReleases();
+    return merged.slice(offset, offset + limit);
+  }
+  return fetchReleasesForGenre(editorialId || '0', offset, limit, source);
 }
 
 // У релиза (альбома) в Deezer нет своего превью — оно есть только у треков,
