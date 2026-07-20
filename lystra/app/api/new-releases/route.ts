@@ -4,12 +4,19 @@ export const dynamic = 'force-dynamic';
 
 const RELEASES_LIMIT = 20;
 
+interface MappedTrack {
+  id: string;
+  title: string;
+  preview?: string;
+}
+
 interface MappedRelease {
   id: string;
   title: string;
   artist: string;
   cover: string;
   preview?: string;
+  tracks: MappedTrack[];
 }
 
 // /editorial/{id}/releases существует, но всегда пустой (проверено вживую) —
@@ -25,18 +32,22 @@ async function fetchReleasesFor(editorialId: string | null): Promise<any[]> {
 }
 
 // У релиза (альбома) в Deezer нет своего превью — оно есть только у треков,
-// поэтому берём первый трек альбома и его превью показываем как превью
-// релиза (аналогично тому, как уже сделано для превью в /api/spotify-mix).
-async function attachPreview(release: any): Promise<MappedRelease> {
-  let preview: string | undefined;
+// поэтому дёргаем полный трек-лист альбома и отдаём все треки (а не только
+// первый) — на фронте релиз показывает список всех треков, как и у жанров.
+async function attachTracks(release: any): Promise<MappedRelease> {
+  let tracks: MappedTrack[] = [];
   try {
     const res = await fetch(`https://api.deezer.com/album/${release.id}`);
     if (res.ok) {
       const album = await res.json();
-      preview = album?.tracks?.data?.[0]?.preview || undefined;
+      tracks = (album?.tracks?.data || []).map((t: any) => ({
+        id: String(t.id),
+        title: t.title,
+        preview: t.preview || undefined,
+      }));
     }
   } catch {
-    // превью не нашлось — отдаём релиз без него, кнопка воспроизведения на
+    // треки не нашлись — отдаём релиз без них, кнопка воспроизведения на
     // фронте в этом случае просто неактивна
   }
 
@@ -45,7 +56,8 @@ async function attachPreview(release: any): Promise<MappedRelease> {
     title: release.title,
     artist: release.artist?.name || 'Неизвестный исполнитель',
     cover: release.cover_big || release.cover_medium || release.cover || '',
-    preview,
+    preview: tracks[0]?.preview,
+    tracks,
   };
 }
 
@@ -55,8 +67,8 @@ export async function GET(request: Request) {
 
   try {
     const releases = (await fetchReleasesFor(genreId)).slice(0, RELEASES_LIMIT);
-    const withPreviews = await Promise.all(releases.map(attachPreview));
-    return NextResponse.json(withPreviews, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    const withTracks = await Promise.all(releases.map(attachTracks));
+    return NextResponse.json(withTracks, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (error) {
     console.error('Ошибка получения новых релизов:', error);
     return NextResponse.json({ error: 'Не удалось получить список релизов' }, { status: 500 });
