@@ -22,11 +22,18 @@ const toolbarBtnStyle: CSSProperties = {
   cursor: 'pointer',
 };
 
+const MAX_MEDIA_ITEMS = 10;
+
 interface BroadcastResult {
   total: number;
   sent: number;
   blocked: number;
   failed: number;
+}
+
+interface MediaEntry {
+  file: File;
+  previewUrl: string;
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -41,8 +48,7 @@ function fileToBase64(file: File): Promise<string> {
 export default function BroadcastPage() {
   const [secret, setSecret] = useState('');
   const [text, setText] = useState('');
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaEntries, setMediaEntries] = useState<MediaEntry[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<BroadcastResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +71,23 @@ export default function BroadcastPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setMediaFile(file);
-    setMediaPreview(file ? URL.createObjectURL(file) : null);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setMediaEntries((prev) => {
+      const combined = [...prev, ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))];
+      if (combined.length > MAX_MEDIA_ITEMS) {
+        setError(`Telegram позволяет прикрепить не больше ${MAX_MEDIA_ITEMS} файлов в одном посте — лишние не добавлены`);
+      }
+      return combined.slice(0, MAX_MEDIA_ITEMS);
+    });
+    e.target.value = '';
+  };
+
+  const removeMediaEntry = (index: number) => {
+    setMediaEntries((prev) => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSend = async () => {
@@ -81,19 +101,18 @@ export default function BroadcastPage() {
     setError(null);
     setResult(null);
     try {
-      let mediaBase64: string | undefined;
-      let mediaExt: string | undefined;
-      let mediaType: 'photo' | 'video' | undefined;
-      if (mediaFile) {
-        mediaBase64 = await fileToBase64(mediaFile);
-        mediaExt = mediaFile.name.split('.').pop();
-        mediaType = mediaFile.type.startsWith('video/') ? 'video' : 'photo';
-      }
+      const media = await Promise.all(
+        mediaEntries.map(async ({ file }) => ({
+          base64: await fileToBase64(file),
+          ext: file.name.split('.').pop(),
+          type: file.type.startsWith('video/') ? ('video' as const) : ('photo' as const),
+        }))
+      );
 
       const res = await fetch('/api/admin/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, text, mediaBase64, mediaExt, mediaType }),
+        body: JSON.stringify({ secret, text, media }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -137,16 +156,46 @@ export default function BroadcastPage() {
         />
 
         <label style={{ display: 'block', marginBottom: 16 }}>
-          <span style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#999' }}>Картинка или видео (необязательно)</span>
-          <input type="file" accept="image/*,video/*" onChange={handleFileChange} />
+          <span style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#999' }}>
+            Картинки/видео (необязательно, можно выбрать сразу несколько — до {MAX_MEDIA_ITEMS})
+          </span>
+          <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} />
         </label>
 
-        {mediaPreview &&
-          (mediaFile?.type.startsWith('video/') ? (
-            <video src={mediaPreview} controls style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 16 }} />
-          ) : (
-            <img src={mediaPreview} alt="" style={{ maxWidth: '100%', borderRadius: 8, marginBottom: 16 }} />
-          ))}
+        {mediaEntries.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            {mediaEntries.map((entry, i) => (
+              <div key={i} style={{ position: 'relative', width: 96, height: 96 }}>
+                {entry.file.type.startsWith('video/') ? (
+                  <video src={entry.previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                ) : (
+                  <img src={entry.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMediaEntry(i)}
+                  title="Убрать"
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    border: 'none',
+                    background: '#f87171',
+                    color: '#fff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    lineHeight: '24px',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           type="button"
