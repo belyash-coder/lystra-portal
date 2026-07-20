@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
+import { getAuthSecret } from '@/lib/authSecret';
 
-const SECRET = process.env.AUTH_SECRET || 'lystra-super-secret-key';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 interface TelegramUser {
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const token = jwt.sign({ id: profile.id, telegram_id: tgUser.id }, SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: profile.id, telegram_id: tgUser.id }, getAuthSecret(), { expiresIn: '30d' });
 
     return NextResponse.json({
       token,

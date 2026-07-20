@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { awardXp, unlockAchievement } from '@/lib/gamification';
+import { getAuthSecret } from '@/lib/authSecret';
 
 export async function POST(request: Request) {
   try {
@@ -31,8 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Генерируем токен на 30 дней
-    const secret = process.env.AUTH_SECRET || 'lystra-super-secret-key';
-    const token = jwt.sign({ id: user.id, email: user.email }, secret, { expiresIn: '30d' });
+    const token = jwt.sign({ id: user.id, email: user.email }, getAuthSecret(), { expiresIn: '30d' });
 
     return NextResponse.json({ token });
   } catch (error) {
