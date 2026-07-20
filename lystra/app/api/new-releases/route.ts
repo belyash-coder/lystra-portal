@@ -23,14 +23,17 @@ interface MappedRelease {
 // реальная подборка новых релизов по жанру лежит в /editorial/{id}/selection.
 // ID из /genre и /editorial — одно и то же пространство идентификаторов
 // (проверено: например 132 — это Pop в обоих списках).
-// Пагинация через index/limit — стандартные параметры Deezer для списковых
-// эндпоинтов (как в /search, /chart и т.д.); для /selection именно так вживую
-// не проверено — если "Ещё" на фронте будет грузить одно и то же, значит
-// этот конкретный эндпоинт их не поддерживает и отдаёт только фиксированную
-// подборку без постраничной подгрузки.
-async function fetchReleasesFor(editorialId: string | null, offset: number, limit: number): Promise<any[]> {
+// НО: /selection — фиксированная курируемая подборка без постраничной
+// подгрузки (index/limit не работают, проверено вживую — "Ещё" грузило одно
+// и то же). Поэтому у неё нет смысла запрашивать вторую страницу — вместо
+// этого источник "chart" (/chart/{id}/albums) отдаёт топ по популярности в
+// жанре с РЕАЛЬНОЙ пагинацией (тоже проверено вживую), но это уже не
+// "новинки", а популярное — смешивает старую классику с новым. Поэтому на
+// фронте это отдельная кнопка "Популярное в жанре", а не бесконечный "Ещё".
+async function fetchReleasesFor(editorialId: string | null, offset: number, limit: number, source: 'selection' | 'chart'): Promise<any[]> {
   const id = editorialId || '0';
-  const res = await fetch(`https://api.deezer.com/editorial/${encodeURIComponent(id)}/selection?index=${offset}&limit=${limit}`);
+  const path = source === 'chart' ? `chart/${encodeURIComponent(id)}/albums` : `editorial/${encodeURIComponent(id)}/selection`;
+  const res = await fetch(`https://api.deezer.com/${path}?index=${offset}&limit=${limit}`);
   if (!res.ok) throw new Error('Ошибка Deezer API');
   const data = await res.json();
   return data?.data || [];
@@ -71,9 +74,10 @@ export async function GET(request: Request) {
   const genreId = searchParams.get('genre_id');
   const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
   const limit = Math.max(1, Number(searchParams.get('limit')) || DEFAULT_PAGE_SIZE);
+  const source = searchParams.get('source') === 'chart' ? 'chart' : 'selection';
 
   try {
-    const releases = await fetchReleasesFor(genreId, offset, limit);
+    const releases = await fetchReleasesFor(genreId, offset, limit, source);
     const withTracks = await Promise.all(releases.map(attachTracks));
     return NextResponse.json(withTracks, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (error) {
