@@ -28,6 +28,7 @@ interface MappedRelease {
   year: number | null;
   country: string | null;
   genre: string | null;
+  style: string | null;
   discogsUrl: string;
   deezerMatched: boolean;
 }
@@ -98,7 +99,7 @@ function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum
   return artistOverlap || titleOverlap;
 }
 
-async function findRandomDiscogsRelease(genre: string | null, country: string | null, year: number | null) {
+async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
   // Тип поиска: если фильтруем по стране, страна — атрибут конкретного
   // тиража, у мастер-релизов (type=master) её нет. Без фильтра по стране
   // ищем среди мастер-релизов — так один альбом с кучей переизданий не
@@ -111,6 +112,7 @@ async function findRandomDiscogsRelease(genre: string | null, country: string | 
   // из-за чего валидные комбинации фильтров ошибочно выглядели пустыми).
   const baseParams = new URLSearchParams({ type: searchType, per_page: '1', page: '1' });
   if (genre) baseParams.set('genre_exact', genre);
+  if (style) baseParams.set('style_exact', style);
   if (country) baseParams.set('country_exact', country);
   if (year) baseParams.set('year', String(year));
 
@@ -151,6 +153,7 @@ async function attachDeezerTracks(albumId: string): Promise<MappedTrack[]> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const genre = searchParams.get('genre');
+  const style = searchParams.get('style');
   const country = searchParams.get('country');
   const yearFrom = Number(searchParams.get('year_from')) || null;
   const yearTo = Number(searchParams.get('year_to')) || null;
@@ -171,7 +174,7 @@ export async function GET(request: Request) {
     const maxAttempts = country ? MAX_DEEZER_ATTEMPTS_WITH_COUNTRY : MAX_DEEZER_ATTEMPTS_DEFAULT;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const picked = await findRandomDiscogsRelease(genre, country, year);
+      const picked = await findRandomDiscogsRelease(genre, style, country, year);
       if (!picked) {
         // На первой попытке это значит "по фильтрам вообще ничего нет" -
         // дальше пробовать бессмысленно. На повторных попытках (после уже
@@ -215,6 +218,7 @@ export async function GET(request: Request) {
       // часто несколько тегов жанра сразу, и "первый в массиве" может
       // оказаться вообще не тем, по которому фильтровали.
       genre: genre || discogsRelease.genre?.[0] || null,
+      style: style || discogsRelease.style?.[0] || null,
       discogsUrl: discogsRelease.resource_url ? discogsRelease.resource_url.replace('api.discogs.com/releases', 'www.discogs.com/release').replace('api.discogs.com/masters', 'www.discogs.com/master') : '',
       deezerMatched: !!deezerAlbum,
     };
