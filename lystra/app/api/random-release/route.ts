@@ -18,8 +18,15 @@ const MB_MIN_INTERVAL_MS = 1100;
 let lastMbCallAt = 0;
 
 const ARTIST_BATCH_SIZE = 20;
-const MAX_ARTIST_ATTEMPTS = 4;
-const MAX_DEEZER_ATTEMPTS = 4;
+const MAX_ARTIST_ATTEMPTS = 2;
+const MAX_DEEZER_ATTEMPTS = 2;
+// Живой тест показал: до 16 запросов к Deezer за один спин (4 артиста x 4
+// попытки) укладывали Deezer в rate-limit с нашего IP - и это заодно ломало
+// обычную рулетку по жанрам (spotify-mix тоже ходит в Deezer за превью).
+// В отличие от Discogs, MusicBrainz реально фильтрует по country/tag на
+// уровне запроса, так что первый же артист обычно уже подходит - глубокие
+// повторы больше не нужны для корректности, только для скорости и вежливости
+// к Deezer.
 
 interface MappedTrack {
   id: string;
@@ -209,22 +216,28 @@ function buildArtistQuery(isoCountry: string | null, tagTerms: string[], styleTe
   return clauses.length > 0 ? clauses.join(' AND ') : '*';
 }
 
-// Забираем случайную пачку артистов одним запросом (сначала узнаём общее
-// количество, потом берём случайный сдвиг) — тот же приём, что и с пачкой
-// кандидатов Discogs, просто теперь фильтр (страна/жанр) применяется
-// сервером к полю, которое реально означает то, что нам нужно.
+// Забираем случайную пачку артистов одним запросом. Раньше сначала отдельным
+// запросом узнавали точное количество результатов, чтобы выбрать случайный
+// сдвиг честно - но это лишний обязательный запрос к MusicBrainz на каждый
+// спин (+1.1с из-за rate-limit), а сдвиг всё равно нужен только "какой-то
+// случайный", а не точный. Берём случайный сдвиг в разумных пределах сразу;
+// если на этом сдвиге результатов не оказалось (перелетели за пределы
+// выдачи) - только тогда добираем с нулевого сдвига.
 async function fetchArtistCandidates(query: string): Promise<any[]> {
-  const countData = await mbFetch('artist', new URLSearchParams({ query, fmt: 'json', limit: '1' }));
-  const count: number = countData?.count || 0;
-  if (count === 0) return [];
-
-  const maxOffset = Math.max(0, Math.min(count - 1, 400));
-  const offset = Math.floor(Math.random() * (maxOffset + 1));
+  const offset = Math.floor(Math.random() * 300);
   const batchData = await mbFetch(
     'artist',
     new URLSearchParams({ query, fmt: 'json', limit: String(ARTIST_BATCH_SIZE), offset: String(offset) })
   );
-  return shuffle(batchData?.artists || []);
+  let artists = batchData?.artists || [];
+  if (artists.length === 0 && offset !== 0) {
+    const fallbackData = await mbFetch(
+      'artist',
+      new URLSearchParams({ query, fmt: 'json', limit: String(ARTIST_BATCH_SIZE), offset: '0' })
+    );
+    artists = fallbackData?.artists || [];
+  }
+  return shuffle(artists);
 }
 
 // Локальная перепроверка — но, в отличие от Discogs, здесь country/tag это и
