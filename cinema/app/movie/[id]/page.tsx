@@ -8,7 +8,6 @@ import { StatusSelect } from '@/components/StatusSelect';
 import { RatingStars } from '@/components/RatingStars';
 import { ListPicker } from '@/components/ListPicker';
 import { TmdbResultCard } from '@/components/TmdbResultCard';
-import { useAddMovie } from '@/hooks/useAddMovie';
 import type { MovieWithEntry, MovieList, TmdbListItem, WatchStatus } from '@/lib/types';
 
 interface CastMember {
@@ -37,7 +36,6 @@ export default function MovieDetailPage() {
   const [extras, setExtras] = useState<Extras | null>(null);
   const [lists, setLists] = useState<MovieList[]>([]);
   const [loading, setLoading] = useState(true);
-  const { add, addingId, addedIds } = useAddMovie();
 
   useEffect(() => {
     Promise.all([
@@ -216,13 +214,7 @@ export default function MovieDetailPage() {
           <h2 className="mb-2 text-sm font-semibold text-text-muted">Похожие фильмы</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {extras.similar.map((item) => (
-              <TmdbResultCard
-                key={item.tmdbId}
-                item={item}
-                adding={addingId === item.tmdbId}
-                added={addedIds.has(item.tmdbId)}
-                onAdd={() => add(item.tmdbId)}
-              />
+              <TmdbResultCard key={item.tmdbId} item={item} />
             ))}
           </div>
         </div>

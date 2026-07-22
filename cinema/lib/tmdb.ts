@@ -83,6 +83,7 @@ export async function getGenreList(): Promise<TmdbGenre[]> {
 
 export interface RandomDiscoverFilters {
   genreId?: string;
+  countryCode?: string;
   yearFrom?: string;
   yearTo?: string;
   minRating?: string;
@@ -95,6 +96,7 @@ export async function randomDiscoverMovie(filters: RandomDiscoverFilters): Promi
     'vote_count.gte': '50',
   };
   if (filters.genreId) params.with_genres = filters.genreId;
+  if (filters.countryCode) params.with_origin_country = filters.countryCode;
   if (filters.yearFrom) params['primary_release_date.gte'] = `${filters.yearFrom}-01-01`;
   if (filters.yearTo) params['primary_release_date.lte'] = `${filters.yearTo}-12-31`;
   if (filters.minRating) params['vote_average.gte'] = filters.minRating;

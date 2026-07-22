@@ -29,6 +29,8 @@ export interface TmdbListItem {
   posterUrl: string | null;
   releaseYear: number | null;
   tmdbRating: number | null;
+  libraryMovieId: string | null;
+  inLibrary: boolean;
 }
 
 export interface MovieList {
@@ -44,3 +46,18 @@ export const DISCOVER_LABELS: Record<string, string> = {
   upcoming: 'Скоро выйдет',
   trending: 'В тренде',
 };
+
+export const COUNTRIES = [
+  { code: 'RU', name: 'Россия' },
+  { code: 'US', name: 'США' },
+  { code: 'GB', name: 'Великобритания' },
+  { code: 'FR', name: 'Франция' },
+  { code: 'DE', name: 'Германия' },
+  { code: 'IT', name: 'Италия' },
+  { code: 'ES', name: 'Испания' },
+  { code: 'KR', name: 'Южная Корея' },
+  { code: 'JP', name: 'Япония' },
+  { code: 'CN', name: 'Китай' },
+  { code: 'IN', name: 'Индия' },
+  { code: 'CA', name: 'Канада' },
+];

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Compass, Loader2 } from 'lucide-react';
 import { TmdbResultCard } from '@/components/TmdbResultCard';
-import { useAddMovie } from '@/hooks/useAddMovie';
 import { DISCOVER_LABELS, type TmdbListItem } from '@/lib/types';
 import { DISCOVER_CATEGORIES, type DiscoverCategory } from '@/lib/tmdb';
 
@@ -11,7 +10,6 @@ export default function DiscoverPage() {
   const [category, setCategory] = useState<DiscoverCategory>('popular');
   const [items, setItems] = useState<TmdbListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { add, addingId, addedIds } = useAddMovie();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch triggered on category change
@@ -50,13 +48,7 @@ export default function DiscoverPage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {items.map((item) => (
-            <TmdbResultCard
-              key={item.tmdbId}
-              item={item}
-              adding={addingId === item.tmdbId}
-              added={addedIds.has(item.tmdbId)}
-              onAdd={() => add(item.tmdbId)}
-            />
+            <TmdbResultCard key={item.tmdbId} item={item} />
           ))}
         </div>
       )}

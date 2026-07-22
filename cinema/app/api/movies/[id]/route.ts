@@ -45,3 +45,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     },
   });
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    return NextResponse.json({ message: 'Не авторизован' }, { status: 401 });
+  }
+
+  const { id: movieId } = await params;
+
+  await prisma.movieListEntry.deleteMany({ where: { movieId, list: { profileId: profile.id } } });
+  await prisma.watchEntry.deleteMany({ where: { movieId, profileId: profile.id } });
+
+  return NextResponse.json({ ok: true });
+}
