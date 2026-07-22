@@ -16,7 +16,9 @@ export async function GET(request: Request) {
   const search = searchParams.get('q');
   const listId = searchParams.get('listId');
 
-  const where: Prisma.MovieWhereInput = {};
+  // Библиотека личная: показываем только фильмы, которые сам профиль добавил себе
+  // (есть WatchEntry), а не весь общий каталог.
+  const where: Prisma.MovieWhereInput = { watchEntries: { some: { profileId: profile.id } } };
   if (genre) where.genres = { has: genre };
   if (search) where.title = { contains: search, mode: 'insensitive' };
   if (listId) where.listEntries = { some: { listId, list: { profileId: profile.id } } };

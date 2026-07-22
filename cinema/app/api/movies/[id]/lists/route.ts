@@ -19,6 +19,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ message: 'Список не найден' }, { status: 404 });
   }
 
+  // Попадание в список подразумевает, что фильм в личной библиотеке — иначе он не
+  // покажется в общем списке фильмов профиля (тот теперь фильтруется по WatchEntry).
+  await prisma.watchEntry.upsert({
+    where: { profileId_movieId: { profileId: profile.id, movieId } },
+    create: { profileId: profile.id, movieId, status: 'PLANNED' },
+    update: {},
+  });
+
   await prisma.movieListEntry.upsert({
     where: { listId_movieId: { listId, movieId } },
     create: { listId, movieId },
