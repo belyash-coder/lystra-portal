@@ -3,7 +3,14 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const DISCOGS_USER_AGENT = 'LystraApp/1.0 +https://lystramusic.com';
-const MAX_DEEZER_ATTEMPTS = 3;
+// Без фильтра по стране ищем среди master-релизов - там пул отфильтрован от
+// вала мелких/самиздатовских тиражей, и совпадение в Deezer находится почти
+// всегда с первой-второй попытки. С фильтром по стране приходится искать
+// среди type=release (у мастеров нет своей страны), а там до половины
+// результатов - неизвестные Deezer локальные/самиздатовские издания, поэтому
+// даём больше попыток, прежде чем сдаться.
+const MAX_DEEZER_ATTEMPTS_DEFAULT = 3;
+const MAX_DEEZER_ATTEMPTS_WITH_COUNTRY = 6;
 
 interface MappedTrack {
   id: string;
@@ -21,6 +28,7 @@ interface MappedRelease {
   year: number | null;
   country: string | null;
   genre: string | null;
+  style: string | null;
   discogsUrl: string;
   deezerMatched: boolean;
 }
@@ -91,16 +99,21 @@ function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum
   return artistOverlap || titleOverlap;
 }
 
-async function findRandomDiscogsRelease(genre: string | null, country: string | null, year: number | null) {
+async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
   // Тип поиска: если фильтруем по стране, страна — атрибут конкретного
   // тиража, у мастер-релизов (type=master) её нет. Без фильтра по стране
   // ищем среди мастер-релизов — так один альбом с кучей переизданий не
   // выпадает в рандоме в разы чаще, чем альбом с одним тиражом.
   const searchType = country ? 'release' : 'master';
 
+  // _exact - это то, что реально использует поиск на сайте Discogs для
+  // строгой фильтрации по facet-полю (проверено вживую: обычный genre/
+  // country вместо точной фильтрации даёт куда более смутный результат,
+  // из-за чего валидные комбинации фильтров ошибочно выглядели пустыми).
   const baseParams = new URLSearchParams({ type: searchType, per_page: '1', page: '1' });
-  if (genre) baseParams.set('genre', genre);
-  if (country) baseParams.set('country', country);
+  if (genre) baseParams.set('genre_exact', genre);
+  if (style) baseParams.set('style_exact', style);
+  if (country) baseParams.set('country_exact', country);
   if (year) baseParams.set('year', String(year));
 
   const first = await discogsFetch(baseParams);
@@ -140,6 +153,7 @@ async function attachDeezerTracks(albumId: string): Promise<MappedTrack[]> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const genre = searchParams.get('genre');
+  const style = searchParams.get('style');
   const country = searchParams.get('country');
   const yearFrom = Number(searchParams.get('year_from')) || null;
   const yearTo = Number(searchParams.get('year_to')) || null;
@@ -157,9 +171,10 @@ export async function GET(request: Request) {
   try {
     let discogsRelease: any = null;
     let deezerAlbum: any = null;
+    const maxAttempts = country ? MAX_DEEZER_ATTEMPTS_WITH_COUNTRY : MAX_DEEZER_ATTEMPTS_DEFAULT;
 
-    for (let attempt = 0; attempt < MAX_DEEZER_ATTEMPTS; attempt++) {
-      const picked = await findRandomDiscogsRelease(genre, country, year);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const picked = await findRandomDiscogsRelease(genre, style, country, year);
       if (!picked) {
         // На первой попытке это значит "по фильтрам вообще ничего нет" -
         // дальше пробовать бессмысленно. На повторных попытках (после уже
@@ -203,6 +218,7 @@ export async function GET(request: Request) {
       // часто несколько тегов жанра сразу, и "первый в массиве" может
       // оказаться вообще не тем, по которому фильтровали.
       genre: genre || discogsRelease.genre?.[0] || null,
+      style: style || discogsRelease.style?.[0] || null,
       discogsUrl: discogsRelease.resource_url ? discogsRelease.resource_url.replace('api.discogs.com/releases', 'www.discogs.com/release').replace('api.discogs.com/masters', 'www.discogs.com/master') : '',
       deezerMatched: !!deezerAlbum,
     };
