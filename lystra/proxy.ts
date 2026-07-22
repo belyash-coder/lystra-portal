@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // домене, поэтому нужны CORS-заголовки. Авторизация здесь — Bearer-токен
 // (не cookie), так что открытый Access-Control-Allow-Origin безопасен:
 // сторонний сайт не может ни прочитать, ни подставить чужой токен сам.
-const CORS_PATHS = ['/api/tg/', '/api/favorites', '/api/genres/', '/api/spotify-mix', '/api/mobile/profile', '/api/new-releases']
+const CORS_PATHS = ['/api/tg/', '/api/favorites', '/api/genres/', '/api/spotify-mix', '/api/mobile/profile', '/api/new-releases', '/api/random-release']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
