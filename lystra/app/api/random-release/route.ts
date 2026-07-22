@@ -2,18 +2,24 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const DISCOGS_USER_AGENT = 'LystraApp/1.0 +https://lystramusic.com';
-// Раньше на каждую попытку делали 2 запроса к Discogs (сначала узнать
-// количество страниц, потом забрать один конкретный случайный релиз) + 1 к
-// Deezer, и повторяли это до 6 раз - то есть до 18 последовательных запросов
-// на один спин, и всего 1 кандидат за раз. Теперь забираем сразу пачку до 50
-// реальных кандидатов ОДНИМ запросом (Discogs и так отдаёт их все разом на
-// одной странице), проверяем фильтры у всех 50 бесплатно и локально, и
-// только для прошедших проверку пробуем Deezer - кандидатов на попытку
-// теперь много, а сетевых запросов к Discogs остаётся всего 2 (первый - узнать
-// число страниц, второй - забрать случайную страницу).
-const DISCOGS_PAGE_SIZE = 50;
-const MAX_DEEZER_ATTEMPTS = 8;
+// Discogs честно фильтрует facet-поля (genre_exact/country_exact) через
+// поиск, но при этом "country" у релиза — это страна КОНКРЕТНОЙ пластинки
+// (где прессовали/издавали), а не страна происхождения группы. Отсюда и был
+// баг "Rock/Russia выдаёт только иностранные релизы" — русская группа с
+// изданием в Германии проходила под country=Germany, а не Russia. У
+// MusicBrainz же есть отдельное поле country именно у АРТИСТА (откуда он
+// родом), и жанры/теги там — курируемый список, а не вольные ключевые слова
+// Discogs. Меняем источник данных полностью: сначала находим артиста по
+// стране+жанру/стилю, затем берём случайный релиз именно у него.
+const MB_BASE = 'https://musicbrainz.org/ws/2';
+const MB_USER_AGENT = 'LystraApp/1.0 ( https://lystramusic.com )';
+// Публичный сервер MusicBrainz просит не чаще 1 запроса в секунду.
+const MB_MIN_INTERVAL_MS = 1100;
+let lastMbCallAt = 0;
+
+const ARTIST_BATCH_SIZE = 20;
+const MAX_ARTIST_ATTEMPTS = 4;
+const MAX_DEEZER_ATTEMPTS = 4;
 
 interface MappedTrack {
   id: string;
@@ -32,54 +38,122 @@ interface MappedRelease {
   country: string | null;
   genre: string | null;
   style: string | null;
-  discogsUrl: string;
+  sourceUrl: string;
   deezerMatched: boolean;
 }
 
-function getDiscogsToken(): string {
-  const token = process.env.DISCOGS_TOKEN;
-  if (!token) throw new Error('DISCOGS_TOKEN не настроен');
-  return token;
+// Наши макро-жанры (см. tma/src/lib/discogsGenres.ts) — это категории
+// Discogs, у MusicBrainz своя курируемая таксономия тегов/жанров. Переводим
+// в один или несколько тегов MusicBrainz (через OR), а не полагаемся на
+// точное текстовое совпадение строки.
+const GENRE_TAGS: Record<string, string[]> = {
+  Blues: ['blues'],
+  'Brass & Military': ['brass band', 'military'],
+  "Children's": ["children's music"],
+  Classical: ['classical'],
+  Electronic: ['electronic'],
+  'Folk, World, & Country': ['folk', 'world music', 'country'],
+  'Funk / Soul': ['funk', 'soul'],
+  'Hip Hop': ['hip hop'],
+  Jazz: ['jazz'],
+  Latin: ['latin'],
+  'Non-Music': ['spoken word', 'comedy'],
+  Pop: ['pop'],
+  Reggae: ['reggae'],
+  Rock: ['rock'],
+  'Stage & Screen': ['soundtrack'],
+};
+
+// Соответствие наших строк страны (tma/src/lib/discogsCountries.ts) ISO
+// 3166-1 alpha-2 кодам — именно так у MusicBrainz хранится country артиста.
+const COUNTRY_ISO: Record<string, string> = {
+  UK: 'GB',
+  US: 'US',
+  Germany: 'DE',
+  France: 'FR',
+  Italy: 'IT',
+  Spain: 'ES',
+  Netherlands: 'NL',
+  Belgium: 'BE',
+  Sweden: 'SE',
+  Norway: 'NO',
+  Denmark: 'DK',
+  Finland: 'FI',
+  Iceland: 'IS',
+  Poland: 'PL',
+  Russia: 'RU',
+  USSR: 'SU',
+  Ukraine: 'UA',
+  Belarus: 'BY',
+  Czechoslovakia: 'CS',
+  'Czech Republic': 'CZ',
+  Austria: 'AT',
+  Switzerland: 'CH',
+  Portugal: 'PT',
+  Greece: 'GR',
+  Turkey: 'TR',
+  Ireland: 'IE',
+  Japan: 'JP',
+  'South Korea': 'KR',
+  China: 'CN',
+  India: 'IN',
+  Canada: 'CA',
+  Australia: 'AU',
+  'New Zealand': 'NZ',
+  Brazil: 'BR',
+  Argentina: 'AR',
+  Mexico: 'MX',
+  Chile: 'CL',
+  Colombia: 'CO',
+  Peru: 'PE',
+  Cuba: 'CU',
+  Jamaica: 'JM',
+  'South Africa': 'ZA',
+  Israel: 'IL',
+  Egypt: 'EG',
+  Nigeria: 'NG',
+  Hungary: 'HU',
+  Romania: 'RO',
+  Bulgaria: 'BG',
+  Serbia: 'RS',
+  Croatia: 'HR',
+  Slovenia: 'SI',
+  Slovakia: 'SK',
+  Lithuania: 'LT',
+  Latvia: 'LV',
+  Estonia: 'EE',
+  Georgia: 'GE',
+  Armenia: 'AM',
+  Azerbaijan: 'AZ',
+  Kazakhstan: 'KZ',
+  Uzbekistan: 'UZ',
+};
+const ISO_TO_COUNTRY_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTRY_ISO).map(([label, iso]) => [iso, label])
+);
+
+async function throttleMb() {
+  const wait = MB_MIN_INTERVAL_MS - (Date.now() - lastMbCallAt);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastMbCallAt = Date.now();
 }
 
-async function discogsFetch(params: URLSearchParams) {
-  const res = await fetch(`https://api.discogs.com/database/search?${params.toString()}`, {
-    headers: {
-      'User-Agent': DISCOGS_USER_AGENT,
-      Authorization: `Discogs token=${getDiscogsToken()}`,
-    },
+async function mbFetch(path: string, params: URLSearchParams): Promise<any> {
+  await throttleMb();
+  const res = await fetch(`${MB_BASE}/${path}?${params.toString()}`, {
+    headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' },
   });
-  if (!res.ok) throw new Error(`Discogs ответил ${res.status}`);
+  if (!res.ok) throw new Error(`MusicBrainz ответил ${res.status}`);
   return res.json();
 }
 
-// Название в поиске Discogs приходит одной строкой вида "Артист - Альбом" —
-// у сборников/составных названий это грубое приближение, но для рулетки
-// достаточно.
-function splitArtistTitle(raw: string): { artist: string; title: string } {
-  const idx = raw.indexOf(' - ');
-  if (idx === -1) return { artist: 'Unknown Artist', title: raw };
-  return { artist: raw.slice(0, idx).trim(), title: raw.slice(idx + 3).trim() };
+// Сборники ("Various Artists") нет смысла разбирать по артисту+названию —
+// см. isCompilationArtist в прежней версии этого файла (та же логика).
+function isCompilationArtist(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  return normalized === 'various artists' || normalized === 'various' || normalized === 'v/a';
 }
 
-// У Discogs имена артистов с несколькими одноимёнными исполнителями идут с
-// дизамбигуацией вида "Boston (2)" — для поиска в Deezer это только мешает.
-function cleanArtistName(name: string): string {
-  return name.replace(/\s*\(\d+\)\s*$/, '').trim();
-}
-
-// Сборники ("Various Artists") нет смысла искать в Deezer по артисту+
-// названию — точного совпадения там всё равно почти никогда не будет, а
-// нечёткий поиск Deezer вместо честного "не найдено" подсовывает случайный
-// левый сборник с похожими словами в названии.
-function isCompilationArtist(artist: string): boolean {
-  const normalized = artist.trim().toLowerCase();
-  return normalized === 'various' || normalized === 'v/a' || normalized.startsWith('various ');
-}
-
-// Общие служебные слова не считаются пересечением сами по себе - иначе два
-// совершенно разных названия ("Something The Great" и "The Other Thing")
-// засчитываются как "похожие" только потому что в обоих есть "the".
 const STOP_WORDS = new Set([
   'the', 'and', 'for', 'of', 'in', 'on', 'to', 'is', 'are', 'was', 'this',
   'that', 'with', 'from', 'by', 'at', 'an', 'as', 'be', 'or', 'but', 'not',
@@ -96,24 +170,14 @@ function normalizeWords(s: string): Set<string> {
   );
 }
 
-// У Deezer поиск нечёткий — на редких/составных названиях он может вместо
-// пустого ответа вернуть что-то отдалённо похожее. Раньше считали совпадением
-// пересечение хотя бы по одному из двух полей (артист ИЛИ название) - этого
-// хватало для одного случайного общего слова, из-за чего на изолированных
-// фильтрах (без второго "якоря" вроде страны+жанра вместе) периодически
-// проскакивал совершенно левый альбом. Теперь требуем пересечения СРАЗУ по
-// обоим полям, иначе считаем это "не нашли" и пробуем другой релиз.
+// У Deezer поиск нечёткий и может вместо пустого ответа вернуть что-то
+// отдалённо похожее — требуем пересечения СРАЗУ по артисту И названию, а на
+// полностью нелатинских/некириллических (иероглифических) названиях, где
+// сравнивать реально нечего, считаем совпадение недостоверным, а не
+// автоматическим "проходом".
 function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum: any): boolean {
   const wantedArtist = normalizeWords(searchArtist);
   const wantedTitle = normalizeWords(searchTitle);
-
-  // normalizeWords вырезает все символы кроме латиницы/кириллицы - у полностью
-  // иероглифических названий (японский, китайский и т.п.) после этого не
-  // остаётся вообще ни одного слова для сравнения. Раньше это ошибочно
-  // считалось "автоматическим совпадением" (нечего сравнивать = сойдёт),
-  // из-за чего для таких релизов Deezer мог подсунуть вообще что угодно без
-  // всякой проверки. Раз сравнивать реально нечего - не рискуем и считаем
-  // совпадение недостоверным.
   if (wantedArtist.size === 0 && wantedTitle.size === 0) return false;
 
   const gotArtist = normalizeWords(deezerAlbum?.artist?.name || '');
@@ -121,29 +185,6 @@ function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum
   const artistOverlap = wantedArtist.size === 0 || [...wantedArtist].some((w) => gotArtist.has(w));
   const titleOverlap = wantedTitle.size === 0 || [...wantedTitle].some((w) => gotTitle.has(w));
   return artistOverlap && titleOverlap;
-}
-
-// Живые тесты показали, что Discogs при одиночном facet-фильтре (жанр без
-// страны) периодически возвращает релиз, который на самом деле НЕ подходит
-// под фильтр (например, drum'n'bass вместо джаза) - независимо от type=master
-// или type=release. Вместо того чтобы разбираться, почему их API так себя
-// ведёт, просто перепроверяем сами: у каждого найденного релиза Discogs уже
-// присылает собственные массивы genre/style и поле country - сверяем их с
-// тем, что реально запросили, и если не совпадает, эту попытку не
-// засчитываем и берём другой случайный релиз.
-function releaseMatchesFilters(release: any, genre: string | null, style: string | null, country: string | null): boolean {
-  if (genre) {
-    const genres: string[] = release.genre || [];
-    if (!genres.some((g) => g.toLowerCase() === genre.toLowerCase())) return false;
-  }
-  if (style) {
-    const styles: string[] = release.style || [];
-    if (!styles.some((s) => s.toLowerCase() === style.toLowerCase())) return false;
-  }
-  if (country) {
-    if ((release.country || '').toLowerCase() !== country.toLowerCase()) return false;
-  }
-  return true;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -155,44 +196,71 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// Забирает случайную страницу результатов Discogs (до 50 штук за один
-// запрос) вместо одного кандидата за раз.
-async function fetchDiscogsCandidates(genre: string | null, style: string | null, country: string | null, year: number | null): Promise<any[]> {
-  // Тип поиска: без единого фильтра ищем среди мастер-релизов - так один
-  // альбом с кучей переизданий не выпадает в рандоме в разы чаще, чем альбом
-  // с одним тиражом. Но как только указан любой facet-фильтр (жанр/стиль/
-  // страна), переключаемся на type=release - живые тесты показали, что
-  // genre_exact/style_exact у мастер-релизов фильтруют ненадёжно (иногда
-  // возвращают совсем не тот жанр), а у обычных release - стабильно
-  // корректно. Жертвуем честностью рандома (среди release популярные альбомы
-  // с кучей переизданий чуть чаще выпадают) ради того, чтобы фильтры
-  // реально работали.
-  const hasAnyFacetFilter = !!(genre || style || country);
-  const searchType = hasAnyFacetFilter ? 'release' : 'master';
-
-  // _exact - это то, что реально использует поиск на сайте Discogs для
-  // строгой фильтрации по facet-полю (проверено вживую: обычный genre/
-  // country вместо точной фильтрации даёт куда более смутный результат,
-  // из-за чего валидные комбинации фильтров ошибочно выглядели пустыми).
-  const baseParams = new URLSearchParams({ type: searchType, per_page: String(DISCOGS_PAGE_SIZE), page: '1' });
-  if (genre) baseParams.set('genre_exact', genre);
-  if (style) baseParams.set('style_exact', style);
-  if (country) baseParams.set('country_exact', country);
-  if (year) baseParams.set('year', String(year));
-
-  const first = await discogsFetch(baseParams);
-  const totalPages: number = first?.pagination?.pages || 0;
-  if (totalPages === 0) return [];
-
-  const randomPage = 1 + Math.floor(Math.random() * totalPages);
-  let results = first?.results || [];
-  if (randomPage !== 1) {
-    const params = new URLSearchParams(baseParams);
-    params.set('page', String(randomPage));
-    const picked = await discogsFetch(params);
-    results = picked?.results || [];
+function buildArtistQuery(isoCountry: string | null, tagTerms: string[], styleTerm: string | null): string {
+  const clauses: string[] = [];
+  if (isoCountry) clauses.push(`country:${isoCountry}`);
+  if (tagTerms.length > 0) {
+    const tagClause = tagTerms.map((t) => `tag:"${t}"`).join(' OR ');
+    clauses.push(tagTerms.length > 1 ? `(${tagClause})` : tagClause);
   }
-  return shuffle(results);
+  if (styleTerm) clauses.push(`tag:"${styleTerm}"`);
+  // Без единого фильтра "*" — известный приём MusicBrainz-сообщества для
+  // "любой артист вообще", раз своего эндпоинта "случайный артист" у API нет.
+  return clauses.length > 0 ? clauses.join(' AND ') : '*';
+}
+
+// Забираем случайную пачку артистов одним запросом (сначала узнаём общее
+// количество, потом берём случайный сдвиг) — тот же приём, что и с пачкой
+// кандидатов Discogs, просто теперь фильтр (страна/жанр) применяется
+// сервером к полю, которое реально означает то, что нам нужно.
+async function fetchArtistCandidates(query: string): Promise<any[]> {
+  const countData = await mbFetch('artist', new URLSearchParams({ query, fmt: 'json', limit: '1' }));
+  const count: number = countData?.count || 0;
+  if (count === 0) return [];
+
+  const maxOffset = Math.max(0, Math.min(count - 1, 400));
+  const offset = Math.floor(Math.random() * (maxOffset + 1));
+  const batchData = await mbFetch(
+    'artist',
+    new URLSearchParams({ query, fmt: 'json', limit: String(ARTIST_BATCH_SIZE), offset: String(offset) })
+  );
+  return shuffle(batchData?.artists || []);
+}
+
+// Локальная перепроверка — но, в отличие от Discogs, здесь country/tag это и
+// есть поля, по которым реально фильтрует сам поиск, а не смутные facet'ы.
+// Поэтому отклоняем только при явном расхождении с уже полученными данными,
+// а не при отсутствии данных (отсутствие тегов в ответе — это пробел в
+// разметке MusicBrainz, а не признак того, что жанр не подходит).
+function artistMatchesFilters(artist: any, isoCountry: string | null, tagTerms: string[], styleTerm: string | null): boolean {
+  if (isoCountry && artist.country && artist.country.toUpperCase() !== isoCountry.toUpperCase()) return false;
+  const tags: string[] = (artist.tags || []).map((t: any) => (t.name || '').toLowerCase());
+  if (tags.length > 0) {
+    if (tagTerms.length > 0 && !tagTerms.some((t) => tags.includes(t.toLowerCase()))) return false;
+    if (styleTerm && !tags.includes(styleTerm.toLowerCase())) return false;
+  }
+  return true;
+}
+
+async function fetchReleaseGroups(artistId: string): Promise<any[]> {
+  const data = await mbFetch(
+    'release-group',
+    new URLSearchParams({ artist: artistId, type: 'album|ep', fmt: 'json', limit: '100' })
+  );
+  return data?.['release-groups'] || [];
+}
+
+function releaseGroupYear(rg: any): number | null {
+  const match = (rg['first-release-date'] || '').match(/^(\d{4})/);
+  return match ? Number(match[1]) : null;
+}
+
+function yearInRange(year: number | null, yearFrom: number | null, yearTo: number | null): boolean {
+  if (!yearFrom && !yearTo) return true;
+  if (year === null) return false;
+  if (yearFrom && year < yearFrom) return false;
+  if (yearTo && year > yearTo) return false;
+  return true;
 }
 
 async function searchDeezerAlbum(artist: string, title: string) {
@@ -218,6 +286,20 @@ async function attachDeezerTracks(albumId: string): Promise<MappedTrack[]> {
   }
 }
 
+// Если Deezer не нашёл альбом, берём обложку из Cover Art Archive
+// (официальный архив обложек MusicBrainz) по mbid релиз-группы — он отдаёт
+// 307-редирект на реальную картинку, поэтому просто следуем за ним.
+async function fetchCoverArtArchiveCover(releaseGroupId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://coverartarchive.org/release-group/${releaseGroupId}/front-500`);
+    if (!res.ok) return null;
+    res.body?.cancel();
+    return res.url || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const genre = searchParams.get('genre');
@@ -226,69 +308,58 @@ export async function GET(request: Request) {
   const yearFrom = Number(searchParams.get('year_from')) || null;
   const yearTo = Number(searchParams.get('year_to')) || null;
 
-  try {
-    getDiscogsToken();
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // Диапазон лет сводим к одному случайному году - Discogs фильтрует по
-  // точному году, а не по диапазону.
-  const year = yearFrom && yearTo ? yearFrom + Math.floor(Math.random() * (yearTo - yearFrom + 1)) : yearFrom || yearTo || null;
+  const isoCountry = country ? COUNTRY_ISO[country] || null : null;
+  const tagTerms = genre ? GENRE_TAGS[genre] || [genre.toLowerCase()] : [];
+  const styleTerm = style ? style.trim().toLowerCase() : null;
 
   try {
-    const candidates = await fetchDiscogsCandidates(genre, style, country, year);
-    if (candidates.length === 0) {
+    const query = buildArtistQuery(isoCountry, tagTerms, styleTerm);
+    const artists = await fetchArtistCandidates(query);
+    if (artists.length === 0) {
       return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
     }
 
-    // Фильтры проверяем локально у всех кандидатов сразу (бесплатно, без
-    // сетевых запросов) - см. releaseMatchesFilters выше.
-    const matching = candidates.filter((c) => releaseMatchesFilters(c, genre, style, country));
-    if (matching.length === 0) {
-      // Ни один из ~50 кандидатов на этой случайной странице не подошёл по
-      // фильтрам - честно "не найдено" на этот раз (следующий спин попадёт
-      // на другую случайную страницу).
-      return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
-    }
+    for (const artist of artists.slice(0, MAX_ARTIST_ATTEMPTS)) {
+      if (isCompilationArtist(artist.name || '')) continue;
+      if (!artistMatchesFilters(artist, isoCountry, tagTerms, styleTerm)) continue;
 
-    let discogsRelease: any = matching[0];
-    let deezerAlbum: any = null;
+      const releaseGroups = await fetchReleaseGroups(artist.id);
+      const filtered = shuffle(releaseGroups.filter((rg) => yearInRange(releaseGroupYear(rg), yearFrom, yearTo)));
+      if (filtered.length === 0) continue;
 
-    for (const candidate of matching.slice(0, MAX_DEEZER_ATTEMPTS)) {
-      discogsRelease = candidate;
-      const { artist, title } = splitArtistTitle(candidate.title || '');
-      if (isCompilationArtist(artist)) continue;
-      const cleanedArtist = cleanArtistName(artist);
-      const found = await searchDeezerAlbum(cleanedArtist, title);
-      if (found && isPlausibleMatch(cleanedArtist, title, found)) {
-        deezerAlbum = found;
-        break;
+      let chosenRg = filtered[0];
+      let deezerAlbum: any = null;
+      for (const rg of filtered.slice(0, MAX_DEEZER_ATTEMPTS)) {
+        const found = await searchDeezerAlbum(artist.name, rg.title);
+        if (found && isPlausibleMatch(artist.name, rg.title, found)) {
+          chosenRg = rg;
+          deezerAlbum = found;
+          break;
+        }
       }
+
+      const tracks = deezerAlbum ? await attachDeezerTracks(String(deezerAlbum.id)) : [];
+      const cover = deezerAlbum?.cover_big || deezerAlbum?.cover_medium || (await fetchCoverArtArchiveCover(chosenRg.id)) || '';
+
+      const release: MappedRelease = {
+        id: deezerAlbum ? `deezer-${deezerAlbum.id}` : `mb-${chosenRg.id}`,
+        title: deezerAlbum?.title || chosenRg.title,
+        artist: deezerAlbum?.artist?.name || artist.name,
+        cover,
+        preview: tracks[0]?.preview,
+        tracks,
+        year: releaseGroupYear(chosenRg),
+        country: (artist.country && ISO_TO_COUNTRY_LABEL[artist.country]) || artist.country || null,
+        genre: genre || null,
+        style: style || null,
+        sourceUrl: `https://musicbrainz.org/release-group/${chosenRg.id}`,
+        deezerMatched: !!deezerAlbum,
+      };
+
+      return NextResponse.json(release, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
-    const { artist, title } = splitArtistTitle(discogsRelease.title || '');
-    const tracks = deezerAlbum ? await attachDeezerTracks(String(deezerAlbum.id)) : [];
-
-    const release: MappedRelease = {
-      id: deezerAlbum ? `deezer-${deezerAlbum.id}` : `discogs-${discogsRelease.id}`,
-      title: deezerAlbum?.title || title,
-      artist: deezerAlbum?.artist?.name || cleanArtistName(artist),
-      cover: deezerAlbum?.cover_big || deezerAlbum?.cover_medium || discogsRelease.cover_image || discogsRelease.thumb || '',
-      preview: tracks[0]?.preview,
-      tracks,
-      year: discogsRelease.year || null,
-      country: discogsRelease.country || null,
-      // Показываем именно запрошенный жанр, если он был - у релиза в Discogs
-      // часто несколько тегов жанра сразу, и "первый в массиве" может
-      // оказаться вообще не тем, по которому фильтровали.
-      genre: genre || discogsRelease.genre?.[0] || null,
-      style: style || discogsRelease.style?.[0] || null,
-      discogsUrl: discogsRelease.resource_url ? discogsRelease.resource_url.replace('api.discogs.com/releases', 'www.discogs.com/release').replace('api.discogs.com/masters', 'www.discogs.com/master') : '',
-      deezerMatched: !!deezerAlbum,
-    };
-
-    return NextResponse.json(release, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
   } catch (error: any) {
     console.error('Ошибка получения случайного релиза:', error);
     return NextResponse.json({ error: error.message || 'Не удалось получить релиз' }, { status: 500 });
