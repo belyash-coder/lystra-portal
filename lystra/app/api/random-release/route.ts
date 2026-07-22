@@ -7,26 +7,32 @@ export const dynamic = 'force-dynamic';
 // (где прессовали/издавали), а не страна происхождения группы. Отсюда и был
 // баг "Rock/Russia выдаёт только иностранные релизы" — русская группа с
 // изданием в Германии проходила под country=Germany, а не Russia. У
-// MusicBrainz же есть отдельное поле country именно у АРТИСТА (откуда он
-// родом), и жанры/теги там — курируемый список, а не вольные ключевые слова
-// Discogs. Меняем источник данных полностью: сначала находим артиста по
-// стране+жанру/стилю, затем берём случайный релиз именно у него.
+// MusicBrainz есть отдельное поле country именно у АРТИСТА (откуда он родом)
+// - это чинит именно эту семантическую проблему. Но сам поиск MusicBrainz
+// так же ненадёжно применяет свои фильтры, как и Discogs (см.
+// artistMatchesFilters ниже) - жанры/теги там вдобавок фолксономия
+// (community-tagging), а не курируемый список, так что полагаться на
+// "раз нашёлся в поиске - значит подходит" нельзя точно так же, как и там.
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 const MB_USER_AGENT = 'LystraApp/1.0 ( https://lystramusic.com )';
 // Публичный сервер MusicBrainz просит не чаще 1 запроса в секунду.
 const MB_MIN_INTERVAL_MS = 1100;
 let lastMbCallAt = 0;
 
-const ARTIST_BATCH_SIZE = 20;
-const MAX_ARTIST_ATTEMPTS = 2;
+// Живой тест показал, что MusicBrainz, как и в своё время Discogs, не всегда
+// строго фильтрует выдачу по country/tag из запроса - иногда прилетают
+// артисты не той страны и не того жанра. Поэтому берём пачку побольше и
+// перепроверяем локально (бесплатно) КАЖДОГО кандидата строго - если данные
+// не совпадают или их вообще нет у артиста, кандидат отбрасывается, а не
+// проходит "на всякий случай". Из тех, кто прошёл проверку по-настоящему,
+// уже пробуем найти релиз-группы и совпадение в Deezer.
+const ARTIST_BATCH_SIZE = 50;
+const MAX_ARTIST_ATTEMPTS = 3;
 const MAX_DEEZER_ATTEMPTS = 2;
-// Живой тест показал: до 16 запросов к Deezer за один спин (4 артиста x 4
-// попытки) укладывали Deezer в rate-limit с нашего IP - и это заодно ломало
-// обычную рулетку по жанрам (spotify-mix тоже ходит в Deezer за превью).
-// В отличие от Discogs, MusicBrainz реально фильтрует по country/tag на
-// уровне запроса, так что первый же артист обычно уже подходит - глубокие
-// повторы больше не нужны для корректности, только для скорости и вежливости
-// к Deezer.
+// До 16 запросов к Deezer за один спин (4 артиста x 4 попытки) укладывали
+// Deezer в rate-limit с нашего IP - и это заодно ломало обычную рулетку по
+// жанрам (spotify-mix тоже ходит в Deezer за превью). Раз кандидатов теперь
+// перепроверяем строго до похода в сеть, глубокие повторы Deezer не нужны.
 
 interface MappedTrack {
   id: string;
@@ -240,18 +246,17 @@ async function fetchArtistCandidates(query: string): Promise<any[]> {
   return shuffle(artists);
 }
 
-// Локальная перепроверка — но, в отличие от Discogs, здесь country/tag это и
-// есть поля, по которым реально фильтрует сам поиск, а не смутные facet'ы.
-// Поэтому отклоняем только при явном расхождении с уже полученными данными,
-// а не при отсутствии данных (отсутствие тегов в ответе — это пробел в
-// разметке MusicBrainz, а не признак того, что жанр не подходит).
+// Строгая локальная перепроверка - как выяснилось живым тестом, MusicBrainz
+// не гарантирует, что в выдаче будут только реально подходящие по
+// country/tag артисты (аналогично facet'ам Discogs). Отклоняем и при явном
+// расхождении, И при отсутствии нужных данных - у артиста без указанной
+// страны/тегов мы просто не можем подтвердить соответствие фильтру, значит
+// не показываем его как "нашли то, что просили".
 function artistMatchesFilters(artist: any, isoCountry: string | null, tagTerms: string[], styleTerm: string | null): boolean {
-  if (isoCountry && artist.country && artist.country.toUpperCase() !== isoCountry.toUpperCase()) return false;
+  if (isoCountry && (artist.country || '').toUpperCase() !== isoCountry.toUpperCase()) return false;
   const tags: string[] = (artist.tags || []).map((t: any) => (t.name || '').toLowerCase());
-  if (tags.length > 0) {
-    if (tagTerms.length > 0 && !tagTerms.some((t) => tags.includes(t.toLowerCase()))) return false;
-    if (styleTerm && !tags.includes(styleTerm.toLowerCase())) return false;
-  }
+  if (tagTerms.length > 0 && !tagTerms.some((t) => tags.includes(t.toLowerCase()))) return false;
+  if (styleTerm && !tags.includes(styleTerm.toLowerCase())) return false;
   return true;
 }
 
@@ -332,10 +337,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
     }
 
-    for (const artist of artists.slice(0, MAX_ARTIST_ATTEMPTS)) {
-      if (isCompilationArtist(artist.name || '')) continue;
-      if (!artistMatchesFilters(artist, isoCountry, tagTerms, styleTerm)) continue;
+    // Строгую проверку гоняем по ВСЕЙ пачке сразу (бесплатно, без сети) - и
+    // только из тех, кто реально прошёл, тратим сетевые запросы на
+    // release-группы/Deezer. Раньше проверка была внутри цикла ПОСЛЕ среза
+    // до MAX_ARTIST_ATTEMPTS - если первые же кандидаты в сыром списке не
+    // подходили, попытки заканчивались до того, как доходило до тех, кто
+    // реально подходил дальше в пачке.
+    const verifiedArtists = artists.filter(
+      (a) => !isCompilationArtist(a.name || '') && artistMatchesFilters(a, isoCountry, tagTerms, styleTerm)
+    );
+    if (verifiedArtists.length === 0) {
+      return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
+    }
 
+    for (const artist of verifiedArtists.slice(0, MAX_ARTIST_ATTEMPTS)) {
       const releaseGroups = await fetchReleaseGroups(artist.id);
       const filtered = shuffle(releaseGroups.filter((rg) => yearInRange(releaseGroupYear(rg), yearFrom, yearTo)));
       if (filtered.length === 0) continue;
