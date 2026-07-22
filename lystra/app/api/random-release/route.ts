@@ -3,14 +3,17 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const DISCOGS_USER_AGENT = 'LystraApp/1.0 +https://lystramusic.com';
-// Без единого фильтра ищем среди master-релизов - там пул отфильтрован от
-// вала мелких/самиздатовских тиражей, и совпадение в Deezer находится почти
-// всегда с первой-второй попытки. С любым facet-фильтром (жанр/стиль/страна)
-// приходится искать среди type=release, а там до половины результатов -
-// неизвестные Deezer локальные/самиздатовские издания, поэтому даём больше
-// попыток, прежде чем сдаться.
-const MAX_DEEZER_ATTEMPTS_DEFAULT = 3;
-const MAX_DEEZER_ATTEMPTS_WITH_FILTER = 6;
+// Раньше на каждую попытку делали 2 запроса к Discogs (сначала узнать
+// количество страниц, потом забрать один конкретный случайный релиз) + 1 к
+// Deezer, и повторяли это до 6 раз - то есть до 18 последовательных запросов
+// на один спин, и всего 1 кандидат за раз. Теперь забираем сразу пачку до 50
+// реальных кандидатов ОДНИМ запросом (Discogs и так отдаёт их все разом на
+// одной странице), проверяем фильтры у всех 50 бесплатно и локально, и
+// только для прошедших проверку пробуем Deezer - кандидатов на попытку
+// теперь много, а сетевых запросов к Discogs остаётся всего 2 (первый - узнать
+// число страниц, второй - забрать случайную страницу).
+const DISCOGS_PAGE_SIZE = 50;
+const MAX_DEEZER_ATTEMPTS = 8;
 
 interface MappedTrack {
   id: string;
@@ -143,7 +146,18 @@ function releaseMatchesFilters(release: any, genre: string | null, style: string
   return true;
 }
 
-async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Забирает случайную страницу результатов Discogs (до 50 штук за один
+// запрос) вместо одного кандидата за раз.
+async function fetchDiscogsCandidates(genre: string | null, style: string | null, country: string | null, year: number | null): Promise<any[]> {
   // Тип поиска: без единого фильтра ищем среди мастер-релизов - так один
   // альбом с кучей переизданий не выпадает в рандоме в разы чаще, чем альбом
   // с одним тиражом. Но как только указан любой facet-фильтр (жанр/стиль/
@@ -160,7 +174,7 @@ async function findRandomDiscogsRelease(genre: string | null, style: string | nu
   // строгой фильтрации по facet-полю (проверено вживую: обычный genre/
   // country вместо точной фильтрации даёт куда более смутный результат,
   // из-за чего валидные комбинации фильтров ошибочно выглядели пустыми).
-  const baseParams = new URLSearchParams({ type: searchType, per_page: '1', page: '1' });
+  const baseParams = new URLSearchParams({ type: searchType, per_page: String(DISCOGS_PAGE_SIZE), page: '1' });
   if (genre) baseParams.set('genre_exact', genre);
   if (style) baseParams.set('style_exact', style);
   if (country) baseParams.set('country_exact', country);
@@ -168,13 +182,17 @@ async function findRandomDiscogsRelease(genre: string | null, style: string | nu
 
   const first = await discogsFetch(baseParams);
   const totalPages: number = first?.pagination?.pages || 0;
-  if (totalPages === 0) return null;
+  if (totalPages === 0) return [];
 
   const randomPage = 1 + Math.floor(Math.random() * totalPages);
-  const params = new URLSearchParams(baseParams);
-  params.set('page', String(randomPage));
-  const picked = await discogsFetch(params);
-  return picked?.results?.[0] || null;
+  let results = first?.results || [];
+  if (randomPage !== 1) {
+    const params = new URLSearchParams(baseParams);
+    params.set('page', String(randomPage));
+    const picked = await discogsFetch(params);
+    results = picked?.results || [];
+  }
+  return shuffle(results);
 }
 
 async function searchDeezerAlbum(artist: string, title: string) {
@@ -219,42 +237,34 @@ export async function GET(request: Request) {
   const year = yearFrom && yearTo ? yearFrom + Math.floor(Math.random() * (yearTo - yearFrom + 1)) : yearFrom || yearTo || null;
 
   try {
-    let discogsRelease: any = null;
-    let deezerAlbum: any = null;
-    const maxAttempts = genre || style || country ? MAX_DEEZER_ATTEMPTS_WITH_FILTER : MAX_DEEZER_ATTEMPTS_DEFAULT;
+    const candidates = await fetchDiscogsCandidates(genre, style, country, year);
+    if (candidates.length === 0) {
+      return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
+    }
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const picked = await findRandomDiscogsRelease(genre, style, country, year);
-      if (!picked) {
-        // На первой попытке это значит "по фильтрам вообще ничего нет" -
-        // дальше пробовать бессмысленно. На повторных попытках (после уже
-        // найденного discogsRelease) просто останавливаемся на том, что
-        // есть без Deezer.
-        if (!discogsRelease) return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
-        break;
-      }
-      if (!releaseMatchesFilters(picked, genre, style, country)) {
-        // Discogs сам вернул релиз, не подходящий под фильтры - эта попытка
-        // не считается, пробуем другой случайный релиз.
-        continue;
-      }
-      discogsRelease = picked;
-      const { artist, title } = splitArtistTitle(picked.title || '');
-      if (isCompilationArtist(artist)) {
-        deezerAlbum = null;
-        continue;
-      }
+    // Фильтры проверяем локально у всех кандидатов сразу (бесплатно, без
+    // сетевых запросов) - см. releaseMatchesFilters выше.
+    const matching = candidates.filter((c) => releaseMatchesFilters(c, genre, style, country));
+    if (matching.length === 0) {
+      // Ни один из ~50 кандидатов на этой случайной странице не подошёл по
+      // фильтрам - честно "не найдено" на этот раз (следующий спин попадёт
+      // на другую случайную страницу).
+      return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
+    }
+
+    let discogsRelease: any = matching[0];
+    let deezerAlbum: any = null;
+
+    for (const candidate of matching.slice(0, MAX_DEEZER_ATTEMPTS)) {
+      discogsRelease = candidate;
+      const { artist, title } = splitArtistTitle(candidate.title || '');
+      if (isCompilationArtist(artist)) continue;
       const cleanedArtist = cleanArtistName(artist);
       const found = await searchDeezerAlbum(cleanedArtist, title);
       if (found && isPlausibleMatch(cleanedArtist, title, found)) {
         deezerAlbum = found;
         break;
       }
-      deezerAlbum = null;
-    }
-
-    if (!discogsRelease) {
-      return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
     }
 
     const { artist, title } = splitArtistTitle(discogsRelease.title || '');
