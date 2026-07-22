@@ -31,6 +31,10 @@ export interface TmdbListItem {
   tmdbRating: number | null;
   libraryMovieId: string | null;
   inLibrary: boolean;
+  imdbRating?: number | null;
+  imdbVotes?: number | null;
+  kpRating?: number | null;
+  kpVotes?: number | null;
 }
 
 export interface MovieList {

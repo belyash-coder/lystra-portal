@@ -86,32 +86,55 @@ export interface RandomDiscoverFilters {
   countryCode?: string;
   yearFrom?: string;
   yearTo?: string;
-  minRating?: string;
 }
 
-export async function randomDiscoverMovie(filters: RandomDiscoverFilters): Promise<TmdbSearchResult | null> {
+const SORT_OPTIONS = ['popularity.desc', 'vote_average.desc', 'vote_count.desc', 'primary_release_date.desc'];
+
+function buildDiscoverParams(filters: RandomDiscoverFilters, sortBy: string): Record<string, string> {
   const params: Record<string, string> = {
     include_adult: 'false',
-    sort_by: 'popularity.desc',
+    sort_by: sortBy,
     'vote_count.gte': '50',
   };
   if (filters.genreId) params.with_genres = filters.genreId;
   if (filters.countryCode) params.with_origin_country = filters.countryCode;
   if (filters.yearFrom) params['primary_release_date.gte'] = `${filters.yearFrom}-01-01`;
   if (filters.yearTo) params['primary_release_date.lte'] = `${filters.yearTo}-12-31`;
-  if (filters.minRating) params['vote_average.gte'] = filters.minRating;
+  return params;
+}
+
+// Одна случайная страница кандидатов. Сортировка тоже случайна на каждый вызов,
+// чтобы пул кандидатов не был всегда смещён к самым раскрученным тайтлам.
+export async function discoverCandidatePage(
+  filters: RandomDiscoverFilters
+): Promise<{ results: TmdbSearchResult[]; totalPages: number }> {
+  const sortBy = SORT_OPTIONS[Math.floor(Math.random() * SORT_OPTIONS.length)];
+  const params = buildDiscoverParams(filters, sortBy);
 
   const firstPage = await tmdbFetch('/discover/movie', { ...params, page: '1' });
   const totalPages = Math.min(firstPage.total_pages ?? 1, 500);
-  if (totalPages === 0 || !firstPage.results?.length) return null;
+  if (totalPages === 0 || !firstPage.results?.length) return { results: [], totalPages: 0 };
 
   const randomPage = 1 + Math.floor(Math.random() * totalPages);
   const data =
     randomPage === 1 ? firstPage : await tmdbFetch('/discover/movie', { ...params, page: String(randomPage) });
-  const results: TmdbSearchResult[] = data.results ?? [];
-  if (results.length === 0) return null;
 
+  return { results: data.results ?? [], totalPages };
+}
+
+export async function randomDiscoverMovie(filters: RandomDiscoverFilters): Promise<TmdbSearchResult | null> {
+  const { results } = await discoverCandidatePage(filters);
+  if (results.length === 0) return null;
   return results[Math.floor(Math.random() * results.length)];
+}
+
+export async function getExternalImdbId(tmdbId: number): Promise<string | null> {
+  try {
+    const data = await tmdbFetch(`/movie/${tmdbId}/external_ids`);
+    return data.imdb_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface TmdbCastMember {

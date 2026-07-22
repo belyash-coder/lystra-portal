@@ -44,6 +44,10 @@ export default function LibraryPage() {
     setMovies((prev) => prev.map((m) => (m.id === movieId ? { ...m, ...patch } : m)));
   }
 
+  function removeMovie(movieId: string) {
+    setMovies((prev) => prev.filter((m) => m.id !== movieId));
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -100,7 +104,7 @@ export default function LibraryPage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filtered.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} onUpdate={updateMovie} />
+            <MovieCard key={movie.id} movie={movie} onUpdate={updateMovie} onRemove={removeMovie} />
           ))}
         </div>
       )}

@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { Trash2, Loader2 } from 'lucide-react';
 import type { MovieWithEntry, WatchStatus } from '@/lib/types';
 import { StatusSelect } from './StatusSelect';
 import { RatingStars } from './RatingStars';
@@ -8,10 +10,14 @@ import { RatingStars } from './RatingStars';
 export function MovieCard({
   movie,
   onUpdate,
+  onRemove,
 }: {
   movie: MovieWithEntry;
   onUpdate: (movieId: string, patch: Partial<MovieWithEntry>) => void;
+  onRemove?: (movieId: string) => void;
 }) {
+  const [removing, setRemoving] = useState(false);
+
   async function patchEntry(body: { status?: WatchStatus; rating?: number }) {
     onUpdate(movie.id, body);
     await fetch(`/api/movies/${movie.id}/status`, {
@@ -19,6 +25,17 @@ export function MovieCard({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+  }
+
+  async function handleRemove() {
+    if (!confirm(`Удалить «${movie.title}» из библиотеки?`)) return;
+    setRemoving(true);
+    try {
+      await fetch(`/api/movies/${movie.id}`, { method: 'DELETE' });
+      onRemove?.(movie.id);
+    } finally {
+      setRemoving(false);
+    }
   }
 
   return (
@@ -61,7 +78,19 @@ export function MovieCard({
           </div>
         )}
         <div className="mt-auto flex flex-col gap-2 pt-1">
-          <StatusSelect value={movie.status} onChange={(status) => patchEntry({ status })} />
+          <div className="flex gap-1.5">
+            <div className="flex-1">
+              <StatusSelect value={movie.status} onChange={(status) => patchEntry({ status })} />
+            </div>
+            <button
+              onClick={handleRemove}
+              disabled={removing}
+              className="flex items-center justify-center rounded-lg bg-background px-2.5 text-red-400 hover:bg-surface-hover disabled:opacity-60"
+              aria-label="Удалить из библиотеки"
+            >
+              {removing ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+            </button>
+          </div>
           {movie.status === 'WATCHED' && (
             <RatingStars value={movie.rating} onChange={(rating) => patchEntry({ rating })} />
           )}

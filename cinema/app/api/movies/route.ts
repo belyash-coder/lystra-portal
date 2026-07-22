@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentProfile } from '@/lib/auth';
-import { getMovieDetails, TMDB_POSTER_BASE } from '@/lib/tmdb';
+import { TMDB_POSTER_BASE } from '@/lib/tmdb';
+import { ensureMovieCatalogued } from '@/lib/movieCatalog';
 import type { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -63,25 +64,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    let movie = await prisma.movie.findUnique({ where: { tmdbId } });
-
-    if (!movie) {
-      const details = await getMovieDetails(tmdbId);
-      movie = await prisma.movie.create({
-        data: {
-          tmdbId: details.id,
-          title: details.title,
-          originalTitle: details.original_title,
-          posterPath: details.poster_path,
-          overview: details.overview,
-          releaseYear: details.release_date ? Number(details.release_date.slice(0, 4)) : null,
-          runtime: details.runtime,
-          tmdbRating: details.vote_average,
-          genres: details.genres.map((g) => g.name),
-          addedById: profile.id,
-        },
-      });
-    }
+    const movie = await ensureMovieCatalogued(tmdbId, profile.id);
 
     await prisma.watchEntry.upsert({
       where: { profileId_movieId: { profileId: profile.id, movieId: movie.id } },

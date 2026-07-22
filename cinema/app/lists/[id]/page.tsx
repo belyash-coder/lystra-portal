@@ -29,6 +29,10 @@ export default function ListDetailPage() {
     setMovies((prev) => prev.map((m) => (m.id === movieId ? { ...m, ...patch } : m)));
   }
 
+  function removeMovie(movieId: string) {
+    setMovies((prev) => prev.filter((m) => m.id !== movieId));
+  }
+
   async function deleteList() {
     if (!confirm(`Удалить список «${list?.name}»? Фильмы останутся в библиотеке.`)) return;
     await fetch(`/api/lists/${params.id}`, { method: 'DELETE' });
@@ -67,7 +71,7 @@ export default function ListDetailPage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} onUpdate={updateMovie} />
+            <MovieCard key={movie.id} movie={movie} onUpdate={updateMovie} onRemove={removeMovie} />
           ))}
         </div>
       )}

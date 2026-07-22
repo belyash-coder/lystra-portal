@@ -1,11 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Plus, Trash2, ListPlus, Loader2, X } from 'lucide-react';
 import type { MovieList, TmdbListItem } from '@/lib/types';
 
+function formatVotes(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
 export function TmdbResultCard({ item }: { item: TmdbListItem }) {
+  const router = useRouter();
   const [added, setAdded] = useState(item.inLibrary);
   const [movieId, setMovieId] = useState<string | null>(item.libraryMovieId);
   const [lists, setLists] = useState<MovieList[] | null>(null);
@@ -13,10 +18,35 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [loadingPanel, setLoadingPanel] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const [newListName, setNewListName] = useState('');
 
-  async function ensureAdded(): Promise<string | null> {
+  async function ensureCatalogued(): Promise<string | null> {
     if (movieId) return movieId;
+    const res = await fetch('/api/tmdb/catalog', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdbId: item.tmdbId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const id = data.movieId as string | undefined;
+    if (!id) return null;
+    setMovieId(id);
+    return id;
+  }
+
+  async function openDetail() {
+    setNavigating(true);
+    try {
+      const id = await ensureCatalogued();
+      if (id) router.push(`/movie/${id}`);
+    } finally {
+      setNavigating(false);
+    }
+  }
+
+  async function ensureAdded(): Promise<string | null> {
     const res = await fetch('/api/movies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,41 +123,53 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
     }
   }
 
-  const poster = item.posterUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={item.posterUrl} alt={item.title} className="h-full w-full object-cover" />
-  ) : (
-    <div className="flex h-full items-center justify-center px-2 text-center text-xs text-text-muted">
-      {item.title}
-    </div>
-  );
+  const hasExternalRatings = item.imdbRating != null || item.kpRating != null;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
-      <div className="relative aspect-[2/3] w-full bg-neutral-900">
-        {added && movieId ? (
-          <Link href={`/movie/${movieId}`} className="block h-full w-full">
-            {poster}
-          </Link>
+      <button onClick={openDetail} disabled={navigating} className="relative block aspect-[2/3] w-full bg-neutral-900 text-left">
+        {item.posterUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.posterUrl} alt={item.title} className="h-full w-full object-cover" />
         ) : (
-          poster
+          <div className="flex h-full items-center justify-center px-2 text-center text-xs text-text-muted">
+            {item.title}
+          </div>
         )}
         {item.tmdbRating != null && (
           <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-mint">
-            {item.tmdbRating.toFixed(1)}
+            TMDB {item.tmdbRating.toFixed(1)}
           </span>
         )}
-      </div>
+        {navigating && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <Loader2 className="animate-spin text-white" size={20} />
+          </span>
+        )}
+      </button>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div>
-          {added && movieId ? (
-            <Link href={`/movie/${movieId}`}>
-              <h3 className="line-clamp-2 text-sm font-semibold leading-tight hover:text-lavender">{item.title}</h3>
-            </Link>
-          ) : (
-            <h3 className="line-clamp-2 text-sm font-semibold leading-tight">{item.title}</h3>
-          )}
+          <button onClick={openDetail} disabled={navigating} className="text-left">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-tight hover:text-lavender">{item.title}</h3>
+          </button>
           <p className="text-xs text-text-muted">{item.releaseYear ?? '—'}</p>
+          {hasExternalRatings && (
+            <p className="mt-0.5 text-[11px] text-text-muted">
+              {item.imdbRating != null && (
+                <>
+                  IMDb {item.imdbRating.toFixed(1)}
+                  {item.imdbVotes != null ? ` (${formatVotes(item.imdbVotes)})` : ''}
+                </>
+              )}
+              {item.imdbRating != null && item.kpRating != null ? ' · ' : ''}
+              {item.kpRating != null && (
+                <>
+                  КП {item.kpRating.toFixed(1)}
+                  {item.kpVotes != null ? ` (${formatVotes(item.kpVotes)})` : ''}
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         {!added ? (
