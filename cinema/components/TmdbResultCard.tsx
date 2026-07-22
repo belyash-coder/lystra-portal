@@ -154,21 +154,24 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
           </button>
           <p className="text-xs text-text-muted">{item.releaseYear ?? '—'}</p>
           {hasExternalRatings && (
-            <p className="mt-0.5 text-[11px] text-text-muted">
+            <div className="mt-1 flex flex-wrap gap-1">
               {item.imdbRating != null && (
-                <>
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#F5C518] px-1.5 py-0.5 text-[10px] font-bold text-black">
                   IMDb {item.imdbRating.toFixed(1)}
-                  {item.imdbVotes != null ? ` (${formatVotes(item.imdbVotes)})` : ''}
-                </>
+                  {item.imdbVotes != null && (
+                    <span className="font-normal opacity-70">({formatVotes(item.imdbVotes)})</span>
+                  )}
+                </span>
               )}
-              {item.imdbRating != null && item.kpRating != null ? ' · ' : ''}
               {item.kpRating != null && (
-                <>
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#FF6600] px-1.5 py-0.5 text-[10px] font-bold text-white">
                   КП {item.kpRating.toFixed(1)}
-                  {item.kpVotes != null ? ` (${formatVotes(item.kpVotes)})` : ''}
-                </>
+                  {item.kpVotes != null && (
+                    <span className="font-normal opacity-80">({formatVotes(item.kpVotes)})</span>
+                  )}
+                </span>
               )}
-            </p>
+            </div>
           )}
         </div>
 

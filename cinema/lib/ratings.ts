@@ -16,14 +16,23 @@ export async function getOmdbRating(imdbId: string): Promise<ExternalRating> {
     url.searchParams.set('apikey', apiKey);
 
     const res = await fetch(url.toString());
-    if (!res.ok) return { rating: null, votes: null };
+    if (!res.ok) {
+      console.error(`OMDb HTTP ${res.status} для ${imdbId}`);
+      return { rating: null, votes: null };
+    }
     const data = await res.json();
+
+    if (data.Response === 'False') {
+      console.error(`OMDb error для ${imdbId}: ${data.Error}`);
+      return { rating: null, votes: null };
+    }
 
     const rating = data.imdbRating && data.imdbRating !== 'N/A' ? Number(data.imdbRating) : null;
     const votes = data.imdbVotes && data.imdbVotes !== 'N/A' ? Number(data.imdbVotes.replace(/,/g, '')) : null;
 
     return { rating: Number.isFinite(rating) ? rating : null, votes: Number.isFinite(votes) ? votes : null };
-  } catch {
+  } catch (error) {
+    console.error(`OMDb request failed для ${imdbId}:`, error);
     return { rating: null, votes: null };
   }
 }
@@ -38,7 +47,10 @@ export async function getKinopoiskRating(imdbId: string): Promise<ExternalRating
     url.searchParams.set('limit', '1');
 
     const res = await fetch(url.toString(), { headers: { 'X-API-KEY': apiKey } });
-    if (!res.ok) return { rating: null, votes: null };
+    if (!res.ok) {
+      console.error(`kinopoisk.dev HTTP ${res.status} для ${imdbId}: ${await res.text().catch(() => '')}`);
+      return { rating: null, votes: null };
+    }
     const data = await res.json();
     const movie = data.docs?.[0];
     if (!movie) return { rating: null, votes: null };
@@ -47,7 +59,8 @@ export async function getKinopoiskRating(imdbId: string): Promise<ExternalRating
     const votes = typeof movie.votes?.kp === 'number' ? movie.votes.kp : null;
 
     return { rating, votes };
-  } catch {
+  } catch (error) {
+    console.error(`kinopoisk.dev request failed для ${imdbId}:`, error);
     return { rating: null, votes: null };
   }
 }
