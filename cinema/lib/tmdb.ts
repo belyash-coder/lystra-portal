@@ -71,6 +71,47 @@ export async function discoverMovies(category: DiscoverCategory, page = 1): Prom
   return data.results ?? [];
 }
 
+export interface TmdbGenre {
+  id: number;
+  name: string;
+}
+
+export async function getGenreList(): Promise<TmdbGenre[]> {
+  const data = await tmdbFetch('/genre/movie/list');
+  return data.genres ?? [];
+}
+
+export interface RandomDiscoverFilters {
+  genreId?: string;
+  yearFrom?: string;
+  yearTo?: string;
+  minRating?: string;
+}
+
+export async function randomDiscoverMovie(filters: RandomDiscoverFilters): Promise<TmdbSearchResult | null> {
+  const params: Record<string, string> = {
+    include_adult: 'false',
+    sort_by: 'popularity.desc',
+    'vote_count.gte': '50',
+  };
+  if (filters.genreId) params.with_genres = filters.genreId;
+  if (filters.yearFrom) params['primary_release_date.gte'] = `${filters.yearFrom}-01-01`;
+  if (filters.yearTo) params['primary_release_date.lte'] = `${filters.yearTo}-12-31`;
+  if (filters.minRating) params['vote_average.gte'] = filters.minRating;
+
+  const firstPage = await tmdbFetch('/discover/movie', { ...params, page: '1' });
+  const totalPages = Math.min(firstPage.total_pages ?? 1, 500);
+  if (totalPages === 0 || !firstPage.results?.length) return null;
+
+  const randomPage = 1 + Math.floor(Math.random() * totalPages);
+  const data =
+    randomPage === 1 ? firstPage : await tmdbFetch('/discover/movie', { ...params, page: String(randomPage) });
+  const results: TmdbSearchResult[] = data.results ?? [];
+  if (results.length === 0) return null;
+
+  return results[Math.floor(Math.random() * results.length)];
+}
+
 export interface TmdbCastMember {
   id: number;
   name: string;

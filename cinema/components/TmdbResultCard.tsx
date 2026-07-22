@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Plus, Check, Loader2 } from 'lucide-react';
 import type { TmdbListItem } from '@/lib/types';
 
@@ -12,11 +13,18 @@ export function TmdbResultCard({
   item: TmdbListItem;
   added: boolean;
   adding: boolean;
-  onAdd: () => void;
+  onAdd: () => Promise<string | null>;
 }) {
+  const router = useRouter();
+
+  async function openDetail() {
+    const movieId = await onAdd();
+    if (movieId) router.push(`/movie/${movieId}`);
+  }
+
   return (
     <div className="flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
-      <div className="relative aspect-[2/3] w-full bg-neutral-900">
+      <button onClick={openDetail} className="relative block aspect-[2/3] w-full bg-neutral-900 text-left">
         {item.posterUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.posterUrl} alt={item.title} className="h-full w-full object-cover" />
@@ -30,14 +38,14 @@ export function TmdbResultCard({
             {item.tmdbRating.toFixed(1)}
           </span>
         )}
-      </div>
+      </button>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <div>
-          <h3 className="line-clamp-2 text-sm font-semibold leading-tight">{item.title}</h3>
+        <button onClick={openDetail} className="text-left">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-tight hover:text-lavender">{item.title}</h3>
           <p className="text-xs text-text-muted">{item.releaseYear ?? '—'}</p>
-        </div>
+        </button>
         <button
-          onClick={onAdd}
+          onClick={() => onAdd()}
           disabled={adding || added}
           className="mt-auto flex items-center justify-center gap-1.5 rounded-full bg-mint py-1.5 text-xs font-semibold text-black hover:bg-mint-hover disabled:opacity-60"
         >
