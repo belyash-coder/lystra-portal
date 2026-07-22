@@ -105,9 +105,13 @@ async function findRandomDiscogsRelease(genre: string | null, country: string | 
   // выпадает в рандоме в разы чаще, чем альбом с одним тиражом.
   const searchType = country ? 'release' : 'master';
 
+  // _exact - это то, что реально использует поиск на сайте Discogs для
+  // строгой фильтрации по facet-полю (проверено вживую: обычный genre/
+  // country вместо точной фильтрации даёт куда более смутный результат,
+  // из-за чего валидные комбинации фильтров ошибочно выглядели пустыми).
   const baseParams = new URLSearchParams({ type: searchType, per_page: '1', page: '1' });
-  if (genre) baseParams.set('genre', genre);
-  if (country) baseParams.set('country', country);
+  if (genre) baseParams.set('genre_exact', genre);
+  if (country) baseParams.set('country_exact', country);
   if (year) baseParams.set('year', String(year));
 
   const first = await discogsFetch(baseParams);
