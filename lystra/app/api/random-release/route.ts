@@ -57,6 +57,40 @@ function cleanArtistName(name: string): string {
   return name.replace(/\s*\(\d+\)\s*$/, '').trim();
 }
 
+// Сборники ("Various Artists") нет смысла искать в Deezer по артисту+
+// названию — точного совпадения там всё равно почти никогда не будет, а
+// нечёткий поиск Deezer вместо честного "не найдено" подсовывает случайный
+// левый сборник с похожими словами в названии.
+function isCompilationArtist(artist: string): boolean {
+  const normalized = artist.trim().toLowerCase();
+  return normalized === 'various' || normalized === 'v/a' || normalized.startsWith('various ');
+}
+
+function normalizeWords(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яё\s]/gi, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3)
+  );
+}
+
+// У Deezer поиск нечёткий — на редких/составных названиях он может вместо
+// пустого ответа вернуть что-то отдалённо похожее по словам. Проверяем, что
+// хотя бы артист или название реально пересекаются с тем, что искали, иначе
+// считаем это "не нашли" и пробуем другой релиз, а не показываем пользователю
+// случайно попавшийся не тот альбом.
+function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum: any): boolean {
+  const wantedArtist = normalizeWords(searchArtist);
+  const wantedTitle = normalizeWords(searchTitle);
+  const gotArtist = normalizeWords(deezerAlbum?.artist?.name || '');
+  const gotTitle = normalizeWords(deezerAlbum?.title || '');
+  const artistOverlap = [...wantedArtist].some((w) => gotArtist.has(w));
+  const titleOverlap = [...wantedTitle].some((w) => gotTitle.has(w));
+  return artistOverlap || titleOverlap;
+}
+
 async function findRandomDiscogsRelease(genre: string | null, country: string | null, year: number | null) {
   // Тип поиска: если фильтруем по стране, страна — атрибут конкретного
   // тиража, у мастер-релизов (type=master) её нет. Без фильтра по стране
@@ -136,8 +170,17 @@ export async function GET(request: Request) {
       }
       discogsRelease = picked;
       const { artist, title } = splitArtistTitle(picked.title || '');
-      deezerAlbum = await searchDeezerAlbum(cleanArtistName(artist), title);
-      if (deezerAlbum) break;
+      if (isCompilationArtist(artist)) {
+        deezerAlbum = null;
+        continue;
+      }
+      const cleanedArtist = cleanArtistName(artist);
+      const found = await searchDeezerAlbum(cleanedArtist, title);
+      if (found && isPlausibleMatch(cleanedArtist, title, found)) {
+        deezerAlbum = found;
+        break;
+      }
+      deezerAlbum = null;
     }
 
     if (!discogsRelease) {
@@ -156,7 +199,10 @@ export async function GET(request: Request) {
       tracks,
       year: discogsRelease.year || null,
       country: discogsRelease.country || null,
-      genre: discogsRelease.genre?.[0] || genre || null,
+      // Показываем именно запрошенный жанр, если он был - у релиза в Discogs
+      // часто несколько тегов жанра сразу, и "первый в массиве" может
+      // оказаться вообще не тем, по которому фильтровали.
+      genre: genre || discogsRelease.genre?.[0] || null,
       discogsUrl: discogsRelease.resource_url ? discogsRelease.resource_url.replace('api.discogs.com/releases', 'www.discogs.com/release').replace('api.discogs.com/masters', 'www.discogs.com/master') : '',
       deezerMatched: !!deezerAlbum,
     };
