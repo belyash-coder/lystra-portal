@@ -120,6 +120,29 @@ function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum
   return artistOverlap && titleOverlap;
 }
 
+// Живые тесты показали, что Discogs при одиночном facet-фильтре (жанр без
+// страны) периодически возвращает релиз, который на самом деле НЕ подходит
+// под фильтр (например, drum'n'bass вместо джаза) - независимо от type=master
+// или type=release. Вместо того чтобы разбираться, почему их API так себя
+// ведёт, просто перепроверяем сами: у каждого найденного релиза Discogs уже
+// присылает собственные массивы genre/style и поле country - сверяем их с
+// тем, что реально запросили, и если не совпадает, эту попытку не
+// засчитываем и берём другой случайный релиз.
+function releaseMatchesFilters(release: any, genre: string | null, style: string | null, country: string | null): boolean {
+  if (genre) {
+    const genres: string[] = release.genre || [];
+    if (!genres.some((g) => g.toLowerCase() === genre.toLowerCase())) return false;
+  }
+  if (style) {
+    const styles: string[] = release.style || [];
+    if (!styles.some((s) => s.toLowerCase() === style.toLowerCase())) return false;
+  }
+  if (country) {
+    if ((release.country || '').toLowerCase() !== country.toLowerCase()) return false;
+  }
+  return true;
+}
+
 async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
   // Тип поиска: без единого фильтра ищем среди мастер-релизов - так один
   // альбом с кучей переизданий не выпадает в рандоме в разы чаще, чем альбом
@@ -209,6 +232,11 @@ export async function GET(request: Request) {
         // есть без Deezer.
         if (!discogsRelease) return NextResponse.json({ error: 'Ничего не найдено по этим фильтрам' }, { status: 404 });
         break;
+      }
+      if (!releaseMatchesFilters(picked, genre, style, country)) {
+        // Discogs сам вернул релиз, не подходящий под фильтры - эта попытка
+        // не считается, пробуем другой случайный релиз.
+        continue;
       }
       discogsRelease = picked;
       const { artist, title } = splitArtistTitle(picked.title || '');
