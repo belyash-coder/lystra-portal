@@ -3,7 +3,14 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const DISCOGS_USER_AGENT = 'LystraApp/1.0 +https://lystramusic.com';
-const MAX_DEEZER_ATTEMPTS = 3;
+// Без фильтра по стране ищем среди master-релизов - там пул отфильтрован от
+// вала мелких/самиздатовских тиражей, и совпадение в Deezer находится почти
+// всегда с первой-второй попытки. С фильтром по стране приходится искать
+// среди type=release (у мастеров нет своей страны), а там до половины
+// результатов - неизвестные Deezer локальные/самиздатовские издания, поэтому
+// даём больше попыток, прежде чем сдаться.
+const MAX_DEEZER_ATTEMPTS_DEFAULT = 3;
+const MAX_DEEZER_ATTEMPTS_WITH_COUNTRY = 6;
 
 interface MappedTrack {
   id: string;
@@ -157,8 +164,9 @@ export async function GET(request: Request) {
   try {
     let discogsRelease: any = null;
     let deezerAlbum: any = null;
+    const maxAttempts = country ? MAX_DEEZER_ATTEMPTS_WITH_COUNTRY : MAX_DEEZER_ATTEMPTS_DEFAULT;
 
-    for (let attempt = 0; attempt < MAX_DEEZER_ATTEMPTS; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const picked = await findRandomDiscogsRelease(genre, country, year);
       if (!picked) {
         // На первой попытке это значит "по фильтрам вообще ничего нет" -
