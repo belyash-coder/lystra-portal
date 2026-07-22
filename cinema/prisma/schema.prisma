@@ -25,6 +25,7 @@ model Profile {
 
   addedMovies  Movie[]       @relation("MovieAddedBy")
   watchEntries WatchEntry[]
+  lists        MovieList[]
 }
 
 model Movie {
@@ -43,6 +44,7 @@ model Movie {
   createdAt     DateTime @default(now())
 
   watchEntries WatchEntry[]
+  listEntries  MovieListEntry[]
 
   @@index([addedById])
 }
@@ -61,5 +63,29 @@ model WatchEntry {
   movie   Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, movieId])
+  @@index([movieId])
+}
+
+model MovieList {
+  id        String   @id @default(uuid())
+  profileId String
+  name      String
+  createdAt DateTime @default(now())
+
+  profile Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  entries MovieListEntry[]
+
+  @@unique([profileId, name])
+}
+
+model MovieListEntry {
+  listId  String
+  movieId String
+  addedAt DateTime @default(now())
+
+  list  MovieList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  movie Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([listId, movieId])
   @@index([movieId])
 }

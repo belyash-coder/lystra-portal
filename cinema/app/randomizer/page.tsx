@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Shuffle, Loader2 } from 'lucide-react';
 import { MovieCard } from '@/components/MovieCard';
-import type { MovieWithEntry } from '@/lib/types';
+import type { MovieList, MovieWithEntry } from '@/lib/types';
 
 export default function RandomizerPage() {
   const [allMovies, setAllMovies] = useState<MovieWithEntry[]>([]);
+  const [lists, setLists] = useState<MovieList[]>([]);
   const [genreFilter, setGenreFilter] = useState('ALL');
+  const [listFilter, setListFilter] = useState('ALL');
   const [excludeWatched, setExcludeWatched] = useState(true);
   const [result, setResult] = useState<MovieWithEntry | null>(null);
   const [seenIds, setSeenIds] = useState<string[]>([]);
@@ -18,6 +20,9 @@ export default function RandomizerPage() {
     fetch('/api/movies')
       .then((res) => res.json())
       .then((data) => setAllMovies(data.movies ?? []));
+    fetch('/api/lists')
+      .then((res) => res.json())
+      .then((data) => setLists(data.lists ?? []));
   }, []);
 
   const genres = useMemo(() => {
@@ -32,6 +37,7 @@ export default function RandomizerPage() {
 
     const params = new URLSearchParams();
     if (genreFilter !== 'ALL') params.set('genre', genreFilter);
+    if (listFilter !== 'ALL') params.set('listId', listFilter);
     params.set('excludeWatched', String(excludeWatched));
     nextSeen.forEach((id) => params.append('exclude', id));
 
@@ -78,6 +84,26 @@ export default function RandomizerPage() {
             ))}
           </select>
         </label>
+        {lists.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            Список
+            <select
+              value={listFilter}
+              onChange={(e) => {
+                setListFilter(e.target.value);
+                reset();
+              }}
+              className="rounded-lg border border-white/10 bg-background px-3 py-2"
+            >
+              <option value="ALL">Вся библиотека</option>
+              {lists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

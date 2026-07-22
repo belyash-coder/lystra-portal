@@ -16,12 +16,14 @@ export async function GET(request: Request) {
   const yearFrom = searchParams.get('yearFrom');
   const yearTo = searchParams.get('yearTo');
   const exclude = searchParams.getAll('exclude');
+  const listId = searchParams.get('listId');
 
   const where: Prisma.MovieWhereInput = {};
   if (genre) where.genres = { has: genre };
   if (yearFrom) where.releaseYear = { ...(where.releaseYear as object), gte: Number(yearFrom) };
   if (yearTo) where.releaseYear = { ...(where.releaseYear as object), lte: Number(yearTo) };
   if (exclude.length > 0) where.id = { notIn: exclude };
+  if (listId) where.listEntries = { some: { listId, list: { profileId: profile.id } } };
 
   const movies = await prisma.movie.findMany({
     where,

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { MovieWithEntry, WatchStatus } from '@/lib/types';
 import { StatusSelect } from './StatusSelect';
 import { RatingStars } from './RatingStars';
@@ -22,7 +23,7 @@ export function MovieCard({
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
-      <div className="relative aspect-[2/3] w-full bg-neutral-900">
+      <Link href={`/movie/${movie.id}`} className="relative block aspect-[2/3] w-full bg-neutral-900">
         {movie.posterUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={movie.posterUrl} alt={movie.title} className="h-full w-full object-cover" />
@@ -36,10 +37,12 @@ export function MovieCard({
             {movie.tmdbRating.toFixed(1)}
           </span>
         )}
-      </div>
+      </Link>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div>
-          <h3 className="line-clamp-2 font-semibold leading-tight">{movie.title}</h3>
+          <Link href={`/movie/${movie.id}`}>
+            <h3 className="line-clamp-2 font-semibold leading-tight hover:text-lavender">{movie.title}</h3>
+          </Link>
           <p className="text-xs text-text-muted">
             {movie.releaseYear ?? '—'}
             {movie.runtime ? ` · ${movie.runtime} мин` : ''}

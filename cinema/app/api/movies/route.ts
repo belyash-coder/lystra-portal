@@ -13,10 +13,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const genre = searchParams.get('genre');
   const search = searchParams.get('q');
+  const listId = searchParams.get('listId');
 
   const where: Prisma.MovieWhereInput = {};
   if (genre) where.genres = { has: genre };
   if (search) where.title = { contains: search, mode: 'insensitive' };
+  if (listId) where.listEntries = { some: { listId, list: { profileId: profile.id } } };
 
   const movies = await prisma.movie.findMany({
     where,

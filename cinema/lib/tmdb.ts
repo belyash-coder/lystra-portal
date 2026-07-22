@@ -1,5 +1,7 @@
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 export const TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w500';
+export const TMDB_PROFILE_BASE = 'https://image.tmdb.org/t/p/w185';
+export const TMDB_LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
 
 function getApiKey(): string {
   const key = process.env.TMDB_API_KEY;
@@ -51,4 +53,76 @@ export interface TmdbMovieDetails {
 
 export async function getMovieDetails(tmdbId: number): Promise<TmdbMovieDetails> {
   return tmdbFetch(`/movie/${tmdbId}`);
+}
+
+export const DISCOVER_CATEGORIES = ['popular', 'now_playing', 'top_rated', 'upcoming', 'trending'] as const;
+export type DiscoverCategory = (typeof DISCOVER_CATEGORIES)[number];
+
+const DISCOVER_PATHS: Record<DiscoverCategory, string> = {
+  popular: '/movie/popular',
+  now_playing: '/movie/now_playing',
+  top_rated: '/movie/top_rated',
+  upcoming: '/movie/upcoming',
+  trending: '/trending/movie/week',
+};
+
+export async function discoverMovies(category: DiscoverCategory, page = 1): Promise<TmdbSearchResult[]> {
+  const data = await tmdbFetch(DISCOVER_PATHS[category], { page: String(page) });
+  return data.results ?? [];
+}
+
+export interface TmdbCastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_path: string | null;
+}
+
+export interface TmdbWatchProvider {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string;
+}
+
+export interface TmdbMovieExtras {
+  trailerKey: string | null;
+  director: string | null;
+  cast: TmdbCastMember[];
+  similar: TmdbSearchResult[];
+  watchProviders: {
+    flatrate: TmdbWatchProvider[];
+    rent: TmdbWatchProvider[];
+    buy: TmdbWatchProvider[];
+    link: string | null;
+  } | null;
+}
+
+export async function getMovieExtras(tmdbId: number): Promise<TmdbMovieExtras> {
+  const data = await tmdbFetch(`/movie/${tmdbId}`, {
+    append_to_response: 'videos,credits,similar,watch/providers',
+  });
+
+  const trailer = (data.videos?.results ?? []).find(
+    (v: { site: string; type: string }) => v.site === 'YouTube' && v.type === 'Trailer'
+  ) ?? (data.videos?.results ?? []).find((v: { site: string }) => v.site === 'YouTube');
+
+  const director = (data.credits?.crew ?? []).find((c: { job: string }) => c.job === 'Director');
+
+  const providersByRegion = data['watch/providers']?.results ?? {};
+  const regionData = providersByRegion.RU ?? providersByRegion.US ?? Object.values(providersByRegion)[0];
+
+  return {
+    trailerKey: trailer?.key ?? null,
+    director: director?.name ?? null,
+    cast: (data.credits?.cast ?? []).slice(0, 8),
+    similar: (data.similar?.results ?? []).slice(0, 8),
+    watchProviders: regionData
+      ? {
+          flatrate: regionData.flatrate ?? [],
+          rent: regionData.rent ?? [],
+          buy: regionData.buy ?? [],
+          link: regionData.link ?? null,
+        }
+      : null,
+  };
 }
