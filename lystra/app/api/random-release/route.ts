@@ -74,29 +74,40 @@ function isCompilationArtist(artist: string): boolean {
   return normalized === 'various' || normalized === 'v/a' || normalized.startsWith('various ');
 }
 
+// Общие служебные слова не считаются пересечением сами по себе - иначе два
+// совершенно разных названия ("Something The Great" и "The Other Thing")
+// засчитываются как "похожие" только потому что в обоих есть "the".
+const STOP_WORDS = new Set([
+  'the', 'and', 'for', 'of', 'in', 'on', 'to', 'is', 'are', 'was', 'this',
+  'that', 'with', 'from', 'by', 'at', 'an', 'as', 'be', 'or', 'but', 'not',
+  'all', 'one', 'you', 'his', 'her', 'its', 'part', 'vol', 'volume',
+]);
+
 function normalizeWords(s: string): Set<string> {
   return new Set(
     s
       .toLowerCase()
       .replace(/[^a-z0-9а-яё\s]/gi, ' ')
       .split(/\s+/)
-      .filter((w) => w.length >= 3)
+      .filter((w) => w.length >= 3 && !STOP_WORDS.has(w))
   );
 }
 
 // У Deezer поиск нечёткий — на редких/составных названиях он может вместо
-// пустого ответа вернуть что-то отдалённо похожее по словам. Проверяем, что
-// хотя бы артист или название реально пересекаются с тем, что искали, иначе
-// считаем это "не нашли" и пробуем другой релиз, а не показываем пользователю
-// случайно попавшийся не тот альбом.
+// пустого ответа вернуть что-то отдалённо похожее. Раньше считали совпадением
+// пересечение хотя бы по одному из двух полей (артист ИЛИ название) - этого
+// хватало для одного случайного общего слова, из-за чего на изолированных
+// фильтрах (без второго "якоря" вроде страны+жанра вместе) периодически
+// проскакивал совершенно левый альбом. Теперь требуем пересечения СРАЗУ по
+// обоим полям, иначе считаем это "не нашли" и пробуем другой релиз.
 function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum: any): boolean {
   const wantedArtist = normalizeWords(searchArtist);
   const wantedTitle = normalizeWords(searchTitle);
   const gotArtist = normalizeWords(deezerAlbum?.artist?.name || '');
   const gotTitle = normalizeWords(deezerAlbum?.title || '');
-  const artistOverlap = [...wantedArtist].some((w) => gotArtist.has(w));
-  const titleOverlap = [...wantedTitle].some((w) => gotTitle.has(w));
-  return artistOverlap || titleOverlap;
+  const artistOverlap = wantedArtist.size === 0 || [...wantedArtist].some((w) => gotArtist.has(w));
+  const titleOverlap = wantedTitle.size === 0 || [...wantedTitle].some((w) => gotTitle.has(w));
+  return artistOverlap && titleOverlap;
 }
 
 async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
