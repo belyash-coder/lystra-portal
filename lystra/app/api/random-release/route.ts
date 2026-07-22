@@ -3,14 +3,14 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const DISCOGS_USER_AGENT = 'LystraApp/1.0 +https://lystramusic.com';
-// Без фильтра по стране ищем среди master-релизов - там пул отфильтрован от
+// Без единого фильтра ищем среди master-релизов - там пул отфильтрован от
 // вала мелких/самиздатовских тиражей, и совпадение в Deezer находится почти
-// всегда с первой-второй попытки. С фильтром по стране приходится искать
-// среди type=release (у мастеров нет своей страны), а там до половины
-// результатов - неизвестные Deezer локальные/самиздатовские издания, поэтому
-// даём больше попыток, прежде чем сдаться.
+// всегда с первой-второй попытки. С любым facet-фильтром (жанр/стиль/страна)
+// приходится искать среди type=release, а там до половины результатов -
+// неизвестные Deezer локальные/самиздатовские издания, поэтому даём больше
+// попыток, прежде чем сдаться.
 const MAX_DEEZER_ATTEMPTS_DEFAULT = 3;
-const MAX_DEEZER_ATTEMPTS_WITH_COUNTRY = 6;
+const MAX_DEEZER_ATTEMPTS_WITH_FILTER = 6;
 
 interface MappedTrack {
   id: string;
@@ -121,11 +121,17 @@ function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum
 }
 
 async function findRandomDiscogsRelease(genre: string | null, style: string | null, country: string | null, year: number | null) {
-  // Тип поиска: если фильтруем по стране, страна — атрибут конкретного
-  // тиража, у мастер-релизов (type=master) её нет. Без фильтра по стране
-  // ищем среди мастер-релизов — так один альбом с кучей переизданий не
-  // выпадает в рандоме в разы чаще, чем альбом с одним тиражом.
-  const searchType = country ? 'release' : 'master';
+  // Тип поиска: без единого фильтра ищем среди мастер-релизов - так один
+  // альбом с кучей переизданий не выпадает в рандоме в разы чаще, чем альбом
+  // с одним тиражом. Но как только указан любой facet-фильтр (жанр/стиль/
+  // страна), переключаемся на type=release - живые тесты показали, что
+  // genre_exact/style_exact у мастер-релизов фильтруют ненадёжно (иногда
+  // возвращают совсем не тот жанр), а у обычных release - стабильно
+  // корректно. Жертвуем честностью рандома (среди release популярные альбомы
+  // с кучей переизданий чуть чаще выпадают) ради того, чтобы фильтры
+  // реально работали.
+  const hasAnyFacetFilter = !!(genre || style || country);
+  const searchType = hasAnyFacetFilter ? 'release' : 'master';
 
   // _exact - это то, что реально использует поиск на сайте Discogs для
   // строгой фильтрации по facet-полю (проверено вживую: обычный genre/
@@ -192,7 +198,7 @@ export async function GET(request: Request) {
   try {
     let discogsRelease: any = null;
     let deezerAlbum: any = null;
-    const maxAttempts = country ? MAX_DEEZER_ATTEMPTS_WITH_COUNTRY : MAX_DEEZER_ATTEMPTS_DEFAULT;
+    const maxAttempts = genre || style || country ? MAX_DEEZER_ATTEMPTS_WITH_FILTER : MAX_DEEZER_ATTEMPTS_DEFAULT;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const picked = await findRandomDiscogsRelease(genre, style, country, year);
