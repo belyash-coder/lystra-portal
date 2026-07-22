@@ -103,6 +103,16 @@ function normalizeWords(s: string): Set<string> {
 function isPlausibleMatch(searchArtist: string, searchTitle: string, deezerAlbum: any): boolean {
   const wantedArtist = normalizeWords(searchArtist);
   const wantedTitle = normalizeWords(searchTitle);
+
+  // normalizeWords вырезает все символы кроме латиницы/кириллицы - у полностью
+  // иероглифических названий (японский, китайский и т.п.) после этого не
+  // остаётся вообще ни одного слова для сравнения. Раньше это ошибочно
+  // считалось "автоматическим совпадением" (нечего сравнивать = сойдёт),
+  // из-за чего для таких релизов Deezer мог подсунуть вообще что угодно без
+  // всякой проверки. Раз сравнивать реально нечего - не рискуем и считаем
+  // совпадение недостоверным.
+  if (wantedArtist.size === 0 && wantedTitle.size === 0) return false;
+
   const gotArtist = normalizeWords(deezerAlbum?.artist?.name || '');
   const gotTitle = normalizeWords(deezerAlbum?.title || '');
   const artistOverlap = wantedArtist.size === 0 || [...wantedArtist].some((w) => gotArtist.has(w));
