@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFallbackTag, fetchLastfmCandidates, fetchLastfmTagPageCount, findDeezerPreview } from '@/lib/lastfmGenre';
+import { getFallbackTag, fetchLastfmTopArtists, fetchLastfmTagArtistPageCount, searchDeezerArtist } from '@/lib/lastfmGenre';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +17,13 @@ const MAX_PAGE_ATTEMPTS = 2;
 
 async function tryTagPage(tag: string, totalPages: number): Promise<any | null> {
   const page = 1 + Math.floor(Math.random() * Math.min(totalPages, MAX_LASTFM_PAGE_CAP));
-  const candidates = await fetchLastfmCandidates(tag, page);
+  const candidates = await fetchLastfmTopArtists(tag, page);
   if (candidates.length === 0) return null;
 
   const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, MAX_MATCH_ATTEMPTS);
-  const resolved = await Promise.all(shuffled.map(findDeezerPreview));
-  const match = resolved.find((t) => t?.artist?.id && !isCompilationArtist(t.artist.name));
-  return match?.artist || null;
+  const resolved = await Promise.all(shuffled.map((c) => searchDeezerArtist(c.name)));
+  const match = resolved.find((a) => a?.id && !isCompilationArtist(a.name));
+  return match || null;
 }
 
 interface MappedTrack {
@@ -47,14 +47,13 @@ function isCompilationArtist(name: string): boolean {
   return normalized === 'various artists' || normalized === 'various' || normalized === 'v/a';
 }
 
-// Находим ОДИН реально существующий в Deezer трек по жанровому тегу Last.fm —
-// та же логика, что и в spotify-mix (folksonomy Last.fm точнее ловит нишевые
-// поджанры, чем родные теги Deezer), но нам нужен не список из 10 треков, а
-// всего один надёжно подтверждённый артист, от которого дальше оттолкнуться.
-// Страница выбирается по-настоящему случайно в пределах реального числа
-// страниц у тега (а не угаданного диапазона) - для честного разнообразия.
+// Находим ОДНОГО реально существующего в Deezer артиста по жанровому тегу
+// Last.fm (folksonomy Last.fm точнее ловит нишевые поджанры, чем родные теги
+// Deezer) - через топ артистов тега, а не топ треков (см. fetchLastfmTopArtists
+// выше). Страница выбирается по-настоящему случайно в пределах реального
+// числа страниц у тега (а не угаданного диапазона) - для честного разнообразия.
 async function findMatchedArtist(tag: string): Promise<any | null> {
-  const totalPages = await fetchLastfmTagPageCount(tag);
+  const totalPages = await fetchLastfmTagArtistPageCount(tag);
   if (totalPages === 0) return null;
 
   for (let attempt = 0; attempt < MAX_PAGE_ATTEMPTS; attempt++) {
@@ -93,11 +92,15 @@ export async function GET(request: Request) {
   try {
     let artist = await findMatchedArtist(genre);
 
-    // По точному тегу никого не нашли - пробуем более широкий жанровый тег
-    // (то же самое падение к запасному варианту, что и в spotify-mix).
+    // По точному тегу никого не нашли - пробуем более широкий жанровый тег.
+    // allowRegionalStrip=false - в отличие от spotify-mix, здесь НЕЛЬЗЯ тихо
+    // отрезать национальность ("Russian Rock" -> "Rock"): это была бы не
+    // деградация до более широкого жанра, а подмена страны без предупреждения.
+    // Если единственный доступный fallback именно про это - лучше честно
+    // "не найдено".
     let usedTag = genre;
     if (!artist) {
-      const fallbackTag = getFallbackTag(genre);
+      const fallbackTag = getFallbackTag(genre, false);
       if (fallbackTag) {
         artist = await findMatchedArtist(fallbackTag);
         usedTag = fallbackTag;
