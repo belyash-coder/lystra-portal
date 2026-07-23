@@ -31,7 +31,23 @@ function normalizeArtistName(name: string): string {
     .trim();
 }
 
-async function tryTagPage(tag: string, totalPages: number): Promise<any | null> {
+interface MatchedArtist {
+  artist: any;
+  albums: any[];
+}
+
+async function fetchArtistAlbums(artistId: number): Promise<any[]> {
+  try {
+    const res = await fetch(`https://api.deezer.com/artist/${artistId}/albums?limit=50`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data?.data || [];
+  } catch {
+    return [];
+  }
+}
+
+async function tryTagPage(tag: string, totalPages: number): Promise<MatchedArtist | null> {
   const page = 1 + Math.floor(Math.random() * Math.min(totalPages, MAX_LASTFM_PAGE_CAP));
   const candidates = await fetchLastfmTopArtists(tag, page);
   if (candidates.length === 0) return null;
@@ -42,7 +58,18 @@ async function tryTagPage(tag: string, totalPages: number): Promise<any | null> 
   for (let i = 0; i < resolved.length; i++) {
     const found = resolved[i];
     if (!found?.id || isCompilationArtist(found.name)) continue;
-    if (normalizeArtistName(found.name) === normalizeArtistName(shuffled[i].name)) return found;
+    if (normalizeArtistName(found.name) !== normalizeArtistName(shuffled[i].name)) continue;
+
+    // Раньше при отсутствии нормальных альбомов брали ЛЮБОЙ тип релиза -
+    // живой тест показал, что это иногда подсовывает Deezer-сгенерированные
+    // синтетические "Best of Артист (2017-2025)"-компиляции с кривыми/не
+    // связанными с реальным артистом метаданными. Теперь если у артиста нет
+    // ни одного настоящего альбома - это не тот кандидат, пробуем следующего.
+    const albums = await fetchArtistAlbums(found.id);
+    const properAlbums = albums.filter((a) => a.record_type === 'album');
+    if (properAlbums.length === 0) continue;
+
+    return { artist: found, albums: properAlbums };
   }
   return null;
 }
@@ -73,7 +100,7 @@ function isCompilationArtist(name: string): boolean {
 // Deezer) - через топ артистов тега, а не топ треков (см. fetchLastfmTopArtists
 // выше). Страница выбирается по-настоящему случайно в пределах реального
 // числа страниц у тега (а не угаданного диапазона) - для честного разнообразия.
-async function findMatchedArtist(tag: string): Promise<any | null> {
+async function findMatchedArtist(tag: string): Promise<MatchedArtist | null> {
   const totalPages = await fetchLastfmTagArtistPageCount(tag);
   if (totalPages === 0) return null;
 
@@ -82,17 +109,6 @@ async function findMatchedArtist(tag: string): Promise<any | null> {
     if (match) return match;
   }
   return null;
-}
-
-async function fetchArtistAlbums(artistId: number): Promise<any[]> {
-  try {
-    const res = await fetch(`https://api.deezer.com/artist/${artistId}/albums?limit=50`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data?.data || [];
-  } catch {
-    return [];
-  }
 }
 
 async function fetchFullAlbum(albumId: number): Promise<any | null> {
@@ -111,7 +127,7 @@ export async function GET(request: Request) {
   if (!genre) return NextResponse.json({ error: 'Жанр не указан' }, { status: 400 });
 
   try {
-    let artist = await findMatchedArtist(genre);
+    let matched = await findMatchedArtist(genre);
 
     // По точному тегу никого не нашли - пробуем более широкий жанровый тег.
     // allowRegionalStrip=false - в отличие от spotify-mix, здесь НЕЛЬЗЯ тихо
@@ -120,28 +136,19 @@ export async function GET(request: Request) {
     // Если единственный доступный fallback именно про это - лучше честно
     // "не найдено".
     let usedTag = genre;
-    if (!artist) {
+    if (!matched) {
       const fallbackTag = getFallbackTag(genre, false);
       if (fallbackTag) {
-        artist = await findMatchedArtist(fallbackTag);
+        matched = await findMatchedArtist(fallbackTag);
         usedTag = fallbackTag;
       }
     }
 
-    if (!artist) {
+    if (!matched) {
       return NextResponse.json({ error: 'Ничего не найдено по этому жанру' }, { status: 404 });
     }
 
-    const albums = await fetchArtistAlbums(artist.id);
-    if (albums.length === 0) {
-      return NextResponse.json({ error: 'У найденного артиста нет альбомов в Deezer' }, { status: 404 });
-    }
-
-    // Предпочитаем полноценные альбомы синглам/компиляциям, но если у артиста
-    // их нет - берём что есть, лишь бы показать хоть что-то по этому жанру.
-    const properAlbums = albums.filter((a) => a.record_type === 'album');
-    const pool = properAlbums.length > 0 ? properAlbums : albums;
-    const picked = pool[Math.floor(Math.random() * pool.length)];
+    const picked = matched.albums[Math.floor(Math.random() * matched.albums.length)];
 
     const fullAlbum = await fetchFullAlbum(picked.id);
     if (!fullAlbum) {
@@ -157,7 +164,7 @@ export async function GET(request: Request) {
     const release: MappedRelease = {
       id: `deezer-${fullAlbum.id}`,
       title: fullAlbum.title,
-      artist: fullAlbum.artist?.name || artist.name,
+      artist: fullAlbum.artist?.name || matched.artist.name,
       cover: fullAlbum.cover_xl || fullAlbum.cover_big || fullAlbum.cover || '',
       preview: tracks.find((t) => t.preview)?.preview,
       tracks,
