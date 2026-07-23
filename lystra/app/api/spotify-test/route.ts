@@ -58,15 +58,74 @@ async function getSpotifyToken(): Promise<string> {
   return cachedToken.token;
 }
 
+// Считаем, у скольких треков реально есть preview_url - это то единственное,
+// от чего зависит, есть ли смысл вообще идти этим путём (без превью цепочка
+// плейлист->треки бесполезна для рулетки, ровно как и умерший
+// Recommendations).
+function summarizeTracks(tracks: any[]): { total: number; withPreview: number; sample: any[] } {
+  const withPreview = tracks.filter((t) => !!t?.preview_url).length;
+  return {
+    total: tracks.length,
+    withPreview,
+    sample: tracks.slice(0, 10).map((t) => ({
+      title: t?.name,
+      artist: t?.artists?.map((a: any) => a.name).join(', '),
+      preview_url: t?.preview_url ?? null,
+    })),
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   // mode=search (по умолчанию) - обычный текстовый поиск треков.
-  // mode=recommendations - то, что ближе всего к нашей "рулетке": жанр +
-  // рынок (market, ISO-код страны) + лимит.
+  // mode=recommendations - жанр+рынок (эндпоинт задеприкейчен для новых
+  // приложений, см. предыдущие живые тесты - оставлен для справки).
+  // mode=playlist-search - ищем плейлисты по жанровому слову (обычный
+  // поиск, не Browse API - тот тоже задеприкейчен).
+  // mode=playlist-tracks - треки конкретного плейлиста (?playlist=<id>),
+  // с подсчётом, у скольких реально есть preview_url.
   const mode = searchParams.get('mode') || 'search';
 
   try {
     const token = await getSpotifyToken();
+
+    if (mode === 'playlist-search') {
+      const params = new URLSearchParams({
+        q: searchParams.get('genre') || 'rock',
+        type: 'playlist',
+        limit: searchParams.get('limit') || '10',
+      });
+      const url = `https://api.spotify.com/v1/search?${params.toString()}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const { parsed, raw } = await safeReadJson(res);
+      // У поиска плейлистов известный баг Spotify - часть элементов в items
+      // приходит как null (недоступные/приватные плейлисты), а не просто
+      // отфильтрована - выкидываем их сами.
+      const playlists = (parsed?.playlists?.items || []).filter(Boolean).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        owner: p.owner?.display_name,
+        tracksTotal: p.tracks?.total,
+      }));
+      return NextResponse.json(
+        { requestedUrl: url, status: res.status, playlists, raw: parsed ? undefined : raw },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    if (mode === 'playlist-tracks') {
+      const playlistId = searchParams.get('playlist');
+      if (!playlistId) throw new Error('Нужен параметр ?playlist=<id> (взять из mode=playlist-search)');
+      const params = new URLSearchParams({ limit: searchParams.get('limit') || '50', fields: 'items(track(name,artists,preview_url))' });
+      const url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?${params.toString()}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const { parsed, raw } = await safeReadJson(res);
+      const tracks = (parsed?.items || []).map((i: any) => i.track).filter(Boolean);
+      return NextResponse.json(
+        { requestedUrl: url, status: res.status, summary: summarizeTracks(tracks), raw: parsed ? undefined : raw },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     let url: string;
     if (mode === 'recommendations') {
@@ -88,8 +147,10 @@ export async function GET(request: Request) {
 
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const { parsed, raw } = await safeReadJson(res);
+    const data = parsed ?? raw;
+    const tracks: any[] = mode === 'search' ? data?.tracks?.items || [] : [];
     return NextResponse.json(
-      { requestedUrl: url, status: res.status, data: parsed ?? raw },
+      { requestedUrl: url, status: res.status, data, summary: mode === 'search' ? summarizeTracks(tracks) : undefined },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error: any) {
