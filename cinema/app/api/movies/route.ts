@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentProfile } from '@/lib/auth';
-import { TMDB_POSTER_BASE } from '@/lib/tmdb';
+import { TMDB_POSTER_BASE, type MediaType } from '@/lib/tmdb';
 import { ensureMovieCatalogued } from '@/lib/movieCatalog';
 import type { Prisma } from '@prisma/client';
 
@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const genre = searchParams.get('genre');
   const search = searchParams.get('q');
   const listId = searchParams.get('listId');
+  const mediaTypeParam = searchParams.get('mediaType');
 
   // Библиотека личная: показываем только фильмы, которые сам профиль добавил себе
   // (есть WatchEntry), а не весь общий каталог.
@@ -22,6 +23,9 @@ export async function GET(request: Request) {
   if (genre) where.genres = { has: genre };
   if (search) where.title = { contains: search, mode: 'insensitive' };
   if (listId) where.listEntries = { some: { listId, list: { profileId: profile.id } } };
+  if (mediaTypeParam === 'movie' || mediaTypeParam === 'tv') {
+    where.mediaType = mediaTypeParam === 'movie' ? 'MOVIE' : 'TV';
+  }
 
   const movies = await prisma.movie.findMany({
     where,
@@ -36,6 +40,7 @@ export async function GET(request: Request) {
     const entry = movie.watchEntries[0] ?? null;
     return {
       id: movie.id,
+      mediaType: movie.mediaType === 'MOVIE' ? 'movie' : 'tv',
       tmdbId: movie.tmdbId,
       title: movie.title,
       originalTitle: movie.originalTitle,
@@ -43,6 +48,8 @@ export async function GET(request: Request) {
       overview: movie.overview,
       releaseYear: movie.releaseYear,
       runtime: movie.runtime,
+      numberOfSeasons: movie.numberOfSeasons,
+      numberOfEpisodes: movie.numberOfEpisodes,
       tmdbRating: movie.tmdbRating,
       genres: movie.genres,
       addedBy: movie.addedBy,
@@ -60,13 +67,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Не авторизован' }, { status: 401 });
   }
 
-  const { tmdbId } = await request.json();
+  const { tmdbId, mediaType } = await request.json();
   if (!tmdbId || typeof tmdbId !== 'number') {
     return NextResponse.json({ message: 'tmdbId обязателен' }, { status: 400 });
   }
+  const resolvedMediaType: MediaType = mediaType === 'tv' ? 'tv' : 'movie';
 
   try {
-    const movie = await ensureMovieCatalogued(tmdbId, profile.id);
+    const movie = await ensureMovieCatalogued(resolvedMediaType, tmdbId, profile.id);
 
     await prisma.watchEntry.upsert({
       where: { profileId_movieId: { profileId: profile.id, movieId: movie.id } },

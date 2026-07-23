@@ -13,6 +13,11 @@ enum WatchStatus {
   WATCHED
 }
 
+enum MediaType {
+  MOVIE
+  TV
+}
+
 model Profile {
   id         String   @id @default(uuid())
   telegramId BigInt   @unique
@@ -29,23 +34,27 @@ model Profile {
 }
 
 model Movie {
-  id            String   @id @default(uuid())
-  tmdbId        Int      @unique
-  title         String
-  originalTitle String?
-  posterPath    String?
-  overview      String?
-  releaseYear   Int?
-  runtime       Int?
-  tmdbRating    Float?
-  genres        String[]
-  addedById     String
-  addedBy       Profile  @relation("MovieAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
+  id               String    @id @default(uuid())
+  mediaType        MediaType @default(MOVIE)
+  tmdbId           Int
+  title            String
+  originalTitle    String?
+  posterPath       String?
+  overview         String?
+  releaseYear      Int?
+  runtime          Int?
+  numberOfSeasons  Int?
+  numberOfEpisodes Int?
+  tmdbRating       Float?
+  genres           String[]
+  addedById        String
+  addedBy          Profile   @relation("MovieAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
 
   watchEntries WatchEntry[]
   listEntries  MovieListEntry[]
 
+  @@unique([tmdbId, mediaType])
   @@index([addedById])
 }
 

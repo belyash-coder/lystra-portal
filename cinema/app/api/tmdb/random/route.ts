@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth';
-import { randomDiscoverMovie, TMDB_POSTER_BASE, type RandomDiscoverFilters } from '@/lib/tmdb';
-import { pickHonestRandomMovie, fetchDisplayRatings } from '@/lib/honestRandomizer';
+import { randomDiscoverMovie, TMDB_POSTER_BASE, type RandomDiscoverFilters, type MediaType } from '@/lib/tmdb';
+import { pickHonestRandomMovie, fetchDisplayRatings, type MediaTypeFilter } from '@/lib/honestRandomizer';
 import { attachLibraryInfo } from '@/lib/libraryLookup';
+
+function resolveMediaType(filter: MediaTypeFilter): MediaType {
+  if (filter === 'any') return Math.random() < 0.5 ? 'movie' : 'tv';
+  return filter;
+}
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -11,6 +16,10 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const mediaTypeParam = searchParams.get('mediaType');
+  const mediaTypeFilter: MediaTypeFilter =
+    mediaTypeParam === 'movie' || mediaTypeParam === 'tv' ? mediaTypeParam : 'any';
+
   const filters: RandomDiscoverFilters = {
     genreId: searchParams.get('genreId') ?? undefined,
     countryCode: searchParams.get('country') ?? undefined,
@@ -22,11 +31,12 @@ export async function GET(request: Request) {
 
   try {
     if (minRating != null) {
-      const pick = await pickHonestRandomMovie(filters, minRating);
+      const pick = await pickHonestRandomMovie(mediaTypeFilter, filters, minRating);
       if (!pick) return NextResponse.json({ movie: null });
 
       const mapped = {
         tmdbId: pick.movie.id,
+        mediaType: pick.movie.media_type,
         title: pick.movie.title,
         originalTitle: pick.movie.original_title,
         posterUrl: pick.movie.poster_path ? `${TMDB_POSTER_BASE}${pick.movie.poster_path}` : null,
@@ -41,12 +51,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ movie: enriched });
     }
 
-    const movie = await randomDiscoverMovie(filters);
+    const mediaType = resolveMediaType(mediaTypeFilter);
+    const movie = await randomDiscoverMovie(mediaType, filters);
     if (!movie) return NextResponse.json({ movie: null });
 
-    const { imdb, kp } = await fetchDisplayRatings(movie.id);
+    const { imdb, kp } = await fetchDisplayRatings(mediaType, movie.id);
     const mapped = {
       tmdbId: movie.id,
+      mediaType: movie.media_type,
       title: movie.title,
       originalTitle: movie.original_title,
       posterUrl: movie.poster_path ? `${TMDB_POSTER_BASE}${movie.poster_path}` : null,

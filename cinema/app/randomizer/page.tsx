@@ -4,12 +4,21 @@ import { useEffect, useState } from 'react';
 import { Shuffle, Loader2 } from 'lucide-react';
 import { TmdbResultCard } from '@/components/TmdbResultCard';
 import { COUNTRIES, type TmdbListItem } from '@/lib/types';
-import type { TmdbGenre } from '@/lib/tmdb';
+import type { TmdbGenre, MediaType } from '@/lib/tmdb';
+
+type MediaTypeFilter = MediaType | 'any';
 
 const fieldClass =
   'w-full min-w-0 rounded-lg border border-white/10 bg-background px-3 py-2 focus:border-lavender focus:outline-none';
 
+const MEDIA_OPTIONS: { value: MediaTypeFilter; label: string }[] = [
+  { value: 'any', label: 'Любой' },
+  { value: 'movie', label: 'Фильм' },
+  { value: 'tv', label: 'Сериал' },
+];
+
 export default function RandomizerPage() {
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('any');
   const [genres, setGenres] = useState<TmdbGenre[]>([]);
   const [genreId, setGenreId] = useState('ALL');
   const [country, setCountry] = useState('ALL');
@@ -22,14 +31,18 @@ export default function RandomizerPage() {
   const [spinning, setSpinning] = useState(false);
 
   useEffect(() => {
-    fetch('/api/tmdb/genres')
+    const genreMediaType = mediaTypeFilter === 'tv' ? 'tv' : 'movie';
+    fetch(`/api/tmdb/genres?mediaType=${genreMediaType}`)
       .then((res) => res.json())
       .then((data) => setGenres(data.genres ?? []));
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset genre when switching media type
+    setGenreId('ALL');
+  }, [mediaTypeFilter]);
 
   async function spin() {
     setSpinning(true);
     const params = new URLSearchParams();
+    if (mediaTypeFilter !== 'any') params.set('mediaType', mediaTypeFilter);
     if (genreId !== 'ALL') params.set('genreId', genreId);
     if (country !== 'ALL') params.set('country', country);
     if (yearFrom) params.set('yearFrom', yearFrom);
@@ -59,6 +72,25 @@ export default function RandomizerPage() {
       </h1>
 
       <div className="mb-4 flex flex-col gap-3 rounded-xl bg-surface p-4">
+        <div className="flex gap-2">
+          {MEDIA_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setMediaTypeFilter(opt.value);
+                reset();
+              }}
+              className={`flex-1 rounded-full py-1.5 text-sm font-medium ${
+                mediaTypeFilter === opt.value
+                  ? 'bg-lavender text-black'
+                  : 'bg-background text-text-muted hover:bg-surface-hover'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         <label className="flex min-w-0 flex-col gap-1 text-sm">
           Жанр
           <select
@@ -121,7 +153,7 @@ export default function RandomizerPage() {
         </div>
 
         <label className="flex min-w-0 flex-col gap-1 text-sm">
-          Мин. рейтинг TMDB
+          Мин. рейтинг (IMDb/КП)
           <input
             type="number"
             min={0}

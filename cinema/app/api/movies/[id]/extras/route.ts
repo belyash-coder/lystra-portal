@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentProfile } from '@/lib/auth';
-import { getMovieExtras, TMDB_POSTER_BASE, TMDB_PROFILE_BASE, TMDB_LOGO_BASE } from '@/lib/tmdb';
+import { getTitleExtras, TMDB_POSTER_BASE, TMDB_PROFILE_BASE, TMDB_LOGO_BASE } from '@/lib/tmdb';
 import { attachLibraryInfo } from '@/lib/libraryLookup';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,15 +11,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  const movie = await prisma.movie.findUnique({ where: { id }, select: { tmdbId: true } });
+  const movie = await prisma.movie.findUnique({ where: { id }, select: { tmdbId: true, mediaType: true } });
   if (!movie) {
     return NextResponse.json({ message: 'Фильм не найден' }, { status: 404 });
   }
+  const mediaType = movie.mediaType === 'MOVIE' ? 'movie' : 'tv';
 
   try {
-    const extras = await getMovieExtras(movie.tmdbId);
+    const extras = await getTitleExtras(mediaType, movie.tmdbId);
     const similarMapped = extras.similar.map((m) => ({
       tmdbId: m.id,
+      mediaType: m.media_type,
       title: m.title,
       originalTitle: m.original_title,
       posterUrl: m.poster_path ? `${TMDB_POSTER_BASE}${m.poster_path}` : null,
@@ -29,7 +31,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({
       trailerKey: extras.trailerKey,
-      director: extras.director,
+      creators: extras.creators,
       cast: extras.cast.map((c) => ({
         id: c.id,
         name: c.name,

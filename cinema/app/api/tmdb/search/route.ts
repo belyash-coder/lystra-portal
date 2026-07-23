@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth';
-import { searchMovies, TMDB_POSTER_BASE } from '@/lib/tmdb';
+import { searchMulti, TMDB_POSTER_BASE } from '@/lib/tmdb';
+import { attachLibraryInfo } from '@/lib/libraryLookup';
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -15,17 +16,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await searchMovies(query);
-    return NextResponse.json({
-      results: results.slice(0, 12).map((movie) => ({
-        tmdbId: movie.id,
-        title: movie.title,
-        originalTitle: movie.original_title,
-        posterUrl: movie.poster_path ? `${TMDB_POSTER_BASE}${movie.poster_path}` : null,
-        releaseYear: movie.release_date ? Number(movie.release_date.slice(0, 4)) : null,
-        tmdbRating: movie.vote_average,
-      })),
-    });
+    const results = await searchMulti(query);
+    const mapped = results.slice(0, 20).map((item) => ({
+      tmdbId: item.id,
+      mediaType: item.media_type,
+      title: item.title,
+      originalTitle: item.original_title,
+      posterUrl: item.poster_path ? `${TMDB_POSTER_BASE}${item.poster_path}` : null,
+      releaseYear: item.release_date ? Number(item.release_date.slice(0, 4)) : null,
+      tmdbRating: item.vote_average,
+    }));
+    return NextResponse.json({ results: await attachLibraryInfo(profile.id, mapped) });
   } catch (error) {
     console.error('TMDB search error:', error);
     return NextResponse.json({ message: 'Ошибка поиска TMDB' }, { status: 502 });

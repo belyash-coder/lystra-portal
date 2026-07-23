@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Trash2, Loader2 } from 'lucide-react';
-import type { MovieWithEntry, WatchStatus } from '@/lib/types';
+import { MEDIA_TYPE_LABELS, type MovieWithEntry, type WatchStatus } from '@/lib/types';
 import { StatusSelect } from './StatusSelect';
 import { RatingStars } from './RatingStars';
 
@@ -49,6 +49,11 @@ export function MovieCard({
             {movie.title}
           </div>
         )}
+        {movie.mediaType === 'tv' && (
+          <span className="absolute left-2 top-2 rounded-full bg-lavender px-2 py-0.5 text-[10px] font-bold text-black">
+            {MEDIA_TYPE_LABELS.tv}
+          </span>
+        )}
         {movie.tmdbRating != null && (
           <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-mint">
             {movie.tmdbRating.toFixed(1)}
@@ -62,7 +67,8 @@ export function MovieCard({
           </Link>
           <p className="text-xs text-text-muted">
             {movie.releaseYear ?? '—'}
-            {movie.runtime ? ` · ${movie.runtime} мин` : ''}
+            {movie.mediaType === 'movie' && movie.runtime ? ` · ${movie.runtime} мин` : ''}
+            {movie.mediaType === 'tv' && movie.numberOfSeasons ? ` · ${movie.numberOfSeasons} сез.` : ''}
           </p>
         </div>
         {movie.genres.length > 0 && (

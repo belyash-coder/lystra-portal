@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2, ListPlus, Loader2, X } from 'lucide-react';
-import type { MovieList, TmdbListItem } from '@/lib/types';
+import { MEDIA_TYPE_LABELS, type MovieList, type TmdbListItem } from '@/lib/types';
 
 function formatVotes(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
@@ -26,7 +26,7 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
     const res = await fetch('/api/tmdb/catalog', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdbId: item.tmdbId }),
+      body: JSON.stringify({ tmdbId: item.tmdbId, mediaType: item.mediaType }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -50,7 +50,7 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
     const res = await fetch('/api/movies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdbId: item.tmdbId }),
+      body: JSON.stringify({ tmdbId: item.tmdbId, mediaType: item.mediaType }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -135,6 +135,11 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
           <div className="flex h-full items-center justify-center px-2 text-center text-xs text-text-muted">
             {item.title}
           </div>
+        )}
+        {item.mediaType === 'tv' && (
+          <span className="absolute left-2 top-2 rounded-full bg-lavender px-2 py-0.5 text-[10px] font-bold text-black">
+            {MEDIA_TYPE_LABELS.tv}
+          </span>
         )}
         {item.tmdbRating != null && (
           <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-semibold text-mint">

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Play, Loader2 } from 'lucide-react';
 import { StatusSelect } from '@/components/StatusSelect';
 import { RatingStars } from '@/components/RatingStars';
@@ -24,7 +23,7 @@ interface WatchProvider {
 
 interface Extras {
   trailerKey: string | null;
-  director: string | null;
+  creators: string | null;
   cast: CastMember[];
   similar: TmdbListItem[];
   watchProviders: { link: string | null; flatrate: WatchProvider[]; rent: WatchProvider[]; buy: WatchProvider[] } | null;
@@ -32,6 +31,7 @@ interface Extras {
 
 export default function MovieDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [movie, setMovie] = useState<(MovieWithEntry & { listIds: string[] }) | null>(null);
   const [extras, setExtras] = useState<Extras | null>(null);
   const [lists, setLists] = useState<MovieList[]>([]);
@@ -48,7 +48,7 @@ export default function MovieDetailPage() {
         extrasData
           ? {
               trailerKey: extrasData.trailerKey ?? null,
-              director: extrasData.director ?? null,
+              creators: extrasData.creators ?? null,
               cast: extrasData.cast ?? [],
               similar: extrasData.similar ?? [],
               watchProviders: extrasData.watchProviders ?? null,
@@ -84,10 +84,13 @@ export default function MovieDetailPage() {
 
   return (
     <div>
-      <Link href="/" className="mb-4 inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-main">
+      <button
+        onClick={() => router.back()}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-main"
+      >
         <ArrowLeft size={16} />
-        Назад в библиотеку
-      </Link>
+        Назад
+      </button>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="w-full max-w-[220px] shrink-0 overflow-hidden rounded-xl bg-neutral-900">
@@ -108,10 +111,17 @@ export default function MovieDetailPage() {
           )}
           <p className="mt-1 text-sm text-text-muted">
             {movie.releaseYear ?? '—'}
-            {movie.runtime ? ` · ${movie.runtime} мин` : ''}
+            {movie.mediaType === 'movie' && movie.runtime ? ` · ${movie.runtime} мин` : ''}
+            {movie.mediaType === 'tv' && movie.numberOfSeasons
+              ? ` · ${movie.numberOfSeasons} сез., ${movie.numberOfEpisodes ?? '?'} серий`
+              : ''}
             {movie.tmdbRating != null ? ` · ⭐ ${movie.tmdbRating.toFixed(1)}` : ''}
           </p>
-          {extras?.director && <p className="mt-1 text-sm text-text-muted">Режиссёр: {extras.director}</p>}
+          {extras?.creators && (
+            <p className="mt-1 text-sm text-text-muted">
+              {movie.mediaType === 'movie' ? 'Режиссёр' : 'Создатели'}: {extras.creators}
+            </p>
+          )}
 
           {movie.genres.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -211,7 +221,7 @@ export default function MovieDetailPage() {
 
       {extras && extras.similar.length > 0 && (
         <div className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold text-text-muted">Похожие фильмы</h2>
+          <h2 className="mb-2 text-sm font-semibold text-text-muted">Похожее</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {extras.similar.map((item) => (
               <TmdbResultCard key={item.tmdbId} item={item} />

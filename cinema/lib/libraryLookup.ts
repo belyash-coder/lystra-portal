@@ -1,22 +1,27 @@
 import { prisma } from './prisma';
+import type { MediaType } from './tmdb';
 
 export interface LibraryInfo {
   libraryMovieId: string | null;
   inLibrary: boolean;
 }
 
-export async function attachLibraryInfo<T extends { tmdbId: number }>(
+function toPrismaMediaType(mediaType: MediaType): 'MOVIE' | 'TV' {
+  return mediaType === 'movie' ? 'MOVIE' : 'TV';
+}
+
+export async function attachLibraryInfo<T extends { tmdbId: number; mediaType: MediaType }>(
   profileId: string,
   items: T[]
 ): Promise<(T & LibraryInfo)[]> {
   if (items.length === 0) return [];
 
-  const tmdbIds = items.map((item) => item.tmdbId);
+  const or = items.map((item) => ({ tmdbId: item.tmdbId, mediaType: toPrismaMediaType(item.mediaType) }));
   const movies = await prisma.movie.findMany({
-    where: { tmdbId: { in: tmdbIds } },
-    select: { id: true, tmdbId: true },
+    where: { OR: or },
+    select: { id: true, tmdbId: true, mediaType: true },
   });
-  const movieIdByTmdbId = new Map(movies.map((m) => [m.tmdbId, m.id]));
+  const movieIdByKey = new Map(movies.map((m) => [`${m.mediaType}:${m.tmdbId}`, m.id]));
 
   const movieIds = movies.map((m) => m.id);
   const entries = movieIds.length
@@ -28,7 +33,8 @@ export async function attachLibraryInfo<T extends { tmdbId: number }>(
   const moviesInLibrary = new Set(entries.map((e) => e.movieId));
 
   return items.map((item) => {
-    const libraryMovieId = movieIdByTmdbId.get(item.tmdbId) ?? null;
+    const key = `${toPrismaMediaType(item.mediaType)}:${item.tmdbId}`;
+    const libraryMovieId = movieIdByKey.get(key) ?? null;
     return {
       ...item,
       libraryMovieId,

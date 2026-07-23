@@ -1,7 +1,14 @@
 export type WatchStatus = 'PLANNED' | 'WATCHING' | 'WATCHED';
+export type MediaType = 'movie' | 'tv';
+
+export const MEDIA_TYPE_LABELS: Record<MediaType, string> = {
+  movie: 'Фильм',
+  tv: 'Сериал',
+};
 
 export interface MovieWithEntry {
   id: string;
+  mediaType: MediaType;
   tmdbId: number;
   title: string;
   originalTitle: string | null;
@@ -9,6 +16,8 @@ export interface MovieWithEntry {
   overview: string | null;
   releaseYear: number | null;
   runtime: number | null;
+  numberOfSeasons: number | null;
+  numberOfEpisodes: number | null;
   tmdbRating: number | null;
   genres: string[];
   addedBy: { id: string; firstName: string | null; username: string | null };
@@ -24,6 +33,7 @@ export const STATUS_LABELS: Record<WatchStatus, string> = {
 
 export interface TmdbListItem {
   tmdbId: number;
+  mediaType: MediaType;
   title: string;
   originalTitle: string | null;
   posterUrl: string | null;
@@ -37,19 +47,13 @@ export interface TmdbListItem {
   kpVotes?: number | null;
 }
 
+export type FeedName = 'trending' | 'popular' | 'animation';
+
 export interface MovieList {
   id: string;
   name: string;
   movieCount: number;
 }
-
-export const DISCOVER_LABELS: Record<string, string> = {
-  popular: 'Популярное',
-  now_playing: 'В прокате',
-  top_rated: 'Топ рейтинг',
-  upcoming: 'Скоро выйдет',
-  trending: 'В тренде',
-};
 
 export const COUNTRIES = [
   { code: 'RU', name: 'Россия' },

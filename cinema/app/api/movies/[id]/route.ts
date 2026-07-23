@@ -29,6 +29,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     movie: {
       id: movie.id,
+      mediaType: movie.mediaType === 'MOVIE' ? 'movie' : 'tv',
       tmdbId: movie.tmdbId,
       title: movie.title,
       originalTitle: movie.originalTitle,
@@ -36,6 +37,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       overview: movie.overview,
       releaseYear: movie.releaseYear,
       runtime: movie.runtime,
+      numberOfSeasons: movie.numberOfSeasons,
+      numberOfEpisodes: movie.numberOfEpisodes,
       tmdbRating: movie.tmdbRating,
       genres: movie.genres,
       addedBy: movie.addedBy,
