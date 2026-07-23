@@ -153,6 +153,7 @@ interface MappedRelease {
   preview?: string;
   tracks: MappedTrack[];
   genre: string;
+  year: number | null;
 }
 
 function isCompilationArtist(name: string): boolean {
@@ -217,6 +218,8 @@ export async function GET(request: Request) {
       preview: t.preview || undefined,
     }));
 
+    const yearMatch = (fullAlbum.release_date || '').match(/^(\d{4})/);
+
     const release: MappedRelease = {
       id: `deezer-${fullAlbum.id}`,
       title: fullAlbum.title,
@@ -225,6 +228,7 @@ export async function GET(request: Request) {
       preview: tracks.find((t) => t.preview)?.preview,
       tracks,
       genre: usedTag,
+      year: yearMatch ? Number(yearMatch[1]) : null,
     };
 
     return NextResponse.json(release, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
