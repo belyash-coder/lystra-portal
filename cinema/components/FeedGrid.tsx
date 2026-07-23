@@ -1,13 +1,33 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, SlidersHorizontal, X } from 'lucide-react';
 import { TmdbResultCard } from './TmdbResultCard';
 import type { FeedName, MediaType, TmdbListItem } from '@/lib/types';
 import { CATALOG_SORT_LABELS, type CatalogSort, type TmdbGenre } from '@/lib/tmdb';
 
 const fieldClass =
-  'w-full min-w-0 rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm focus:border-lavender focus:outline-none';
+  'w-full min-w-0 rounded-lg border border-white/10 bg-background px-3 py-2 text-sm focus:border-lavender focus:outline-none';
+
+interface Filters {
+  genreId: string;
+  yearFrom: string;
+  yearTo: string;
+  minRating: string;
+  sort: CatalogSort;
+}
+
+const DEFAULT_FILTERS: Filters = { genreId: 'ALL', yearFrom: '', yearTo: '', minRating: '', sort: 'popularity' };
+
+function countActive(f: Filters): number {
+  let n = 0;
+  if (f.genreId !== 'ALL') n++;
+  if (f.yearFrom) n++;
+  if (f.yearTo) n++;
+  if (f.minRating) n++;
+  if (f.sort !== 'popularity') n++;
+  return n;
+}
 
 export function FeedGrid({
   feed,
@@ -25,11 +45,9 @@ export function FeedGrid({
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [genres, setGenres] = useState<TmdbGenre[]>([]);
-  const [genreId, setGenreId] = useState('ALL');
-  const [yearFrom, setYearFrom] = useState('');
-  const [yearTo, setYearTo] = useState('');
-  const [minRating, setMinRating] = useState('');
-  const [sort, setSort] = useState<CatalogSort>('popularity');
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS);
+  const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
 
   useEffect(() => {
     if (!showFilters) return;
@@ -44,11 +62,11 @@ export function FeedGrid({
     const params = new URLSearchParams({ feed, page: String(targetPage) });
     if (mediaType) params.set('mediaType', mediaType);
     if (showFilters) {
-      if (genreId !== 'ALL') params.set('genreId', genreId);
-      if (yearFrom) params.set('yearFrom', yearFrom);
-      if (yearTo) params.set('yearTo', yearTo);
-      if (minRating) params.set('minRating', minRating);
-      params.set('sort', sort);
+      if (applied.genreId !== 'ALL') params.set('genreId', applied.genreId);
+      if (applied.yearFrom) params.set('yearFrom', applied.yearFrom);
+      if (applied.yearTo) params.set('yearTo', applied.yearTo);
+      if (applied.minRating) params.set('minRating', applied.minRating);
+      params.set('sort', applied.sort);
     }
     return params;
   }
@@ -70,7 +88,7 @@ export function FeedGrid({
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feed, mediaType, genreId, yearFrom, yearTo, minRating, sort]);
+  }, [feed, mediaType, applied]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -85,53 +103,112 @@ export function FeedGrid({
     }
   }
 
+  function openPanel() {
+    setDraft(applied);
+    setPanelOpen(true);
+  }
+
+  function applyFilters() {
+    setApplied(draft);
+    setPanelOpen(false);
+  }
+
+  function resetFilters() {
+    setDraft(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+    setPanelOpen(false);
+  }
+
+  const activeCount = countActive(applied);
+
   return (
     <div>
       {showFilters && (
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <select value={genreId} onChange={(e) => setGenreId(e.target.value)} className={`${fieldClass} sm:w-40`}>
-            <option value="ALL">Все жанры</option>
-            {genres.map((genre) => (
-              <option key={genre.id} value={genre.id}>
-                {genre.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            value={yearFrom}
-            onChange={(e) => setYearFrom(e.target.value)}
-            placeholder="Год от"
-            className={`${fieldClass} sm:w-28`}
-          />
-          <input
-            type="number"
-            value={yearTo}
-            onChange={(e) => setYearTo(e.target.value)}
-            placeholder="Год до"
-            className={`${fieldClass} sm:w-28`}
-          />
-          <input
-            type="number"
-            min={0}
-            max={10}
-            step={0.5}
-            value={minRating}
-            onChange={(e) => setMinRating(e.target.value)}
-            placeholder="Мин. рейтинг"
-            className={`${fieldClass} sm:w-32`}
-          />
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as CatalogSort)}
-            className={`${fieldClass} sm:w-44`}
+        <div className="mb-4">
+          <button
+            onClick={panelOpen ? () => setPanelOpen(false) : openPanel}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium ${
+              activeCount > 0 ? 'bg-lavender text-black' : 'bg-surface text-text-muted hover:bg-surface-hover'
+            }`}
           >
-            {Object.entries(CATALOG_SORT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            <SlidersHorizontal size={16} />
+            Фильтры
+            {activeCount > 0 && <span>· {activeCount}</span>}
+          </button>
+
+          {panelOpen && (
+            <div className="mt-3 flex flex-col gap-2 rounded-xl bg-surface p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-semibold text-text-muted">Фильтры</span>
+                <button onClick={() => setPanelOpen(false)} aria-label="Закрыть">
+                  <X size={16} className="text-text-muted" />
+                </button>
+              </div>
+              <select
+                value={draft.genreId}
+                onChange={(e) => setDraft({ ...draft, genreId: e.target.value })}
+                className={fieldClass}
+              >
+                <option value="ALL">Все жанры</option>
+                {genres.map((genre) => (
+                  <option key={genre.id} value={genre.id}>
+                    {genre.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={draft.yearFrom}
+                  onChange={(e) => setDraft({ ...draft, yearFrom: e.target.value })}
+                  placeholder="Год от"
+                  className={fieldClass}
+                />
+                <input
+                  type="number"
+                  value={draft.yearTo}
+                  onChange={(e) => setDraft({ ...draft, yearTo: e.target.value })}
+                  placeholder="Год до"
+                  className={fieldClass}
+                />
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.5}
+                value={draft.minRating}
+                onChange={(e) => setDraft({ ...draft, minRating: e.target.value })}
+                placeholder="Мин. рейтинг"
+                className={fieldClass}
+              />
+              <select
+                value={draft.sort}
+                onChange={(e) => setDraft({ ...draft, sort: e.target.value as CatalogSort })}
+                className={fieldClass}
+              >
+                {Object.entries(CATALOG_SORT_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1 flex gap-2">
+                <button
+                  onClick={resetFilters}
+                  className="flex-1 rounded-full bg-background py-2 text-sm font-medium hover:bg-surface-hover"
+                >
+                  Сбросить
+                </button>
+                <button
+                  onClick={applyFilters}
+                  className="flex-1 rounded-full bg-lavender py-2 text-sm font-semibold text-black hover:bg-lavender-hover"
+                >
+                  Применить
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
