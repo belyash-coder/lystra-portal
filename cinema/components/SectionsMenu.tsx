@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Compass, Film, Tv, Sparkles, Shuffle } from 'lucide-react';
+import { Menu, X, Compass, Film, Tv, Palette, Shuffle } from 'lucide-react';
+import { ProfileMenu } from './ProfileMenu';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Обзор', icon: Compass },
   { href: '/movies', label: 'Фильмы', icon: Film },
   { href: '/tv', label: 'Сериалы', icon: Tv },
-  { href: '/animation', label: 'Мультфильмы', icon: Sparkles },
+  { href: '/animation', label: 'Мультфильмы', icon: Palette },
   { href: '/randomizer', label: 'Рандомайзер', icon: Shuffle },
 ];
 
@@ -45,7 +46,7 @@ export function SectionsMenu() {
         createPortal(
           <div className="fixed inset-0 z-30">
             <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-            <div className="absolute left-0 top-0 h-full w-64 bg-surface p-4 shadow-2xl">
+            <div className="absolute left-0 top-0 flex h-full w-64 flex-col bg-surface p-4 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <span className="font-bold text-lavender">Разделы</span>
                 <button
@@ -73,6 +74,9 @@ export function SectionsMenu() {
                   );
                 })}
               </nav>
+              <div className="mt-auto border-t border-white/10 pt-2">
+                <ProfileMenu />
+              </div>
             </div>
           </div>,
           document.body

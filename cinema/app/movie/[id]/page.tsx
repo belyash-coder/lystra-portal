@@ -2,12 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, Loader2, Star } from 'lucide-react';
 import { StatusSelect } from '@/components/StatusSelect';
 import { RatingStars } from '@/components/RatingStars';
 import { ListPicker } from '@/components/ListPicker';
 import { TmdbResultCard } from '@/components/TmdbResultCard';
 import type { MovieWithEntry, MovieList, TmdbListItem, WatchStatus } from '@/lib/types';
+
+function formatVotes(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+interface ExternalRatings {
+  imdb: number | null;
+  imdbVotes: number | null;
+  kp: number | null;
+  kpVotes: number | null;
+}
 
 interface CastMember {
   id: number;
@@ -36,6 +47,32 @@ export default function MovieDetailPage() {
   const [extras, setExtras] = useState<Extras | null>(null);
   const [lists, setLists] = useState<MovieList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ratings, setRatings] = useState<ExternalRatings | null>(null);
+  const [ratingsShown, setRatingsShown] = useState(false);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+
+  async function toggleRatings() {
+    if (ratingsShown) {
+      setRatingsShown(false);
+      return;
+    }
+    if (ratings === null && movie) {
+      setRatingsLoading(true);
+      try {
+        const res = await fetch(`/api/tmdb/ratings?tmdbId=${movie.tmdbId}&mediaType=${movie.mediaType}`);
+        const data = res.ok ? await res.json() : null;
+        setRatings({
+          imdb: data?.imdb?.rating ?? null,
+          imdbVotes: data?.imdb?.votes ?? null,
+          kp: data?.kp?.rating ?? null,
+          kpVotes: data?.kp?.votes ?? null,
+        });
+      } finally {
+        setRatingsLoading(false);
+      }
+    }
+    setRatingsShown(true);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -117,6 +154,37 @@ export default function MovieDetailPage() {
               : ''}
             {movie.tmdbRating != null ? ` · ⭐ ${movie.tmdbRating.toFixed(1)}` : ''}
           </p>
+          <button
+            onClick={toggleRatings}
+            disabled={ratingsLoading}
+            className="mt-1.5 flex w-fit items-center gap-1 rounded-md bg-surface px-2 py-1 text-xs text-text-muted hover:text-lavender disabled:opacity-60"
+          >
+            {ratingsLoading ? <Loader2 className="animate-spin" size={12} /> : <Star size={12} />}
+            {ratingsShown ? 'Скрыть рейтинги IMDb/КП' : 'Показать рейтинги IMDb/КП'}
+          </button>
+          {ratingsShown && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {ratings?.imdb != null && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#F5C518] px-2 py-0.5 text-xs font-bold text-black">
+                  IMDb {ratings.imdb.toFixed(1)}
+                  {ratings.imdbVotes != null && (
+                    <span className="font-normal opacity-70">({formatVotes(ratings.imdbVotes)})</span>
+                  )}
+                </span>
+              )}
+              {ratings?.kp != null && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#FF6600] px-2 py-0.5 text-xs font-bold text-white">
+                  КП {ratings.kp.toFixed(1)}
+                  {ratings.kpVotes != null && (
+                    <span className="font-normal opacity-80">({formatVotes(ratings.kpVotes)})</span>
+                  )}
+                </span>
+              )}
+              {ratings && ratings.imdb == null && ratings.kp == null && (
+                <span className="text-xs text-text-muted">Нет данных</span>
+              )}
+            </div>
+          )}
           {extras?.creators && (
             <p className="mt-1 text-sm text-text-muted">
               {movie.mediaType === 'movie' ? 'Режиссёр' : 'Создатели'}: {extras.creators}

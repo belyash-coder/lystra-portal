@@ -22,18 +22,8 @@ export function ProfileMenu() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 text-sm text-text-muted">
-        {profile.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface text-xs">
-            {profile.firstName?.[0] ?? '?'}
-          </div>
-        )}
-      </button>
       {open && (
-        <div className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-xl bg-surface shadow-xl">
+        <div className="absolute bottom-12 left-0 z-20 w-44 overflow-hidden rounded-xl bg-background shadow-xl">
           <Link
             href="/library"
             onClick={() => setOpen(false)}
@@ -52,6 +42,20 @@ export function ProfileMenu() {
           </Link>
         </div>
       )}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover"
+      >
+        {profile.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background text-xs">
+            {profile.firstName?.[0] ?? '?'}
+          </div>
+        )}
+        <span className="truncate">{profile.firstName ?? 'Профиль'}</span>
+      </button>
     </div>
   );
 }
