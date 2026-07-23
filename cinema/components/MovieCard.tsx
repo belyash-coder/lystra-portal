@@ -2,10 +2,21 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, Star } from 'lucide-react';
 import { MEDIA_TYPE_LABELS, type MovieWithEntry, type WatchStatus } from '@/lib/types';
 import { StatusSelect } from './StatusSelect';
 import { RatingStars } from './RatingStars';
+
+function formatVotes(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+interface ExternalRatings {
+  imdb: number | null;
+  imdbVotes: number | null;
+  kp: number | null;
+  kpVotes: number | null;
+}
 
 export function MovieCard({
   movie,
@@ -17,6 +28,32 @@ export function MovieCard({
   onRemove?: (movieId: string) => void;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [ratings, setRatings] = useState<ExternalRatings | null>(null);
+  const [ratingsShown, setRatingsShown] = useState(false);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+
+  async function toggleRatings() {
+    if (ratingsShown) {
+      setRatingsShown(false);
+      return;
+    }
+    if (ratings === null) {
+      setRatingsLoading(true);
+      try {
+        const res = await fetch(`/api/tmdb/ratings?tmdbId=${movie.tmdbId}&mediaType=${movie.mediaType}`);
+        const data = res.ok ? await res.json() : null;
+        setRatings({
+          imdb: data?.imdb?.rating ?? null,
+          imdbVotes: data?.imdb?.votes ?? null,
+          kp: data?.kp?.rating ?? null,
+          kpVotes: data?.kp?.votes ?? null,
+        });
+      } finally {
+        setRatingsLoading(false);
+      }
+    }
+    setRatingsShown(true);
+  }
 
   async function patchEntry(body: { status?: WatchStatus; rating?: number }) {
     onUpdate(movie.id, body);
@@ -70,6 +107,37 @@ export function MovieCard({
             {movie.mediaType === 'movie' && movie.runtime ? ` · ${movie.runtime} мин` : ''}
             {movie.mediaType === 'tv' && movie.numberOfSeasons ? ` · ${movie.numberOfSeasons} сез.` : ''}
           </p>
+          <button
+            onClick={toggleRatings}
+            disabled={ratingsLoading}
+            className="mt-1 flex w-fit items-center gap-1 rounded-md bg-background px-1.5 py-0.5 text-[10px] text-text-muted hover:text-lavender disabled:opacity-60"
+          >
+            {ratingsLoading ? <Loader2 className="animate-spin" size={10} /> : <Star size={10} />}
+            {ratingsShown ? 'Скрыть рейтинги' : 'IMDb / КП'}
+          </button>
+          {ratingsShown && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {ratings?.imdb != null && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#F5C518] px-1.5 py-0.5 text-[10px] font-bold text-black">
+                  IMDb {ratings.imdb.toFixed(1)}
+                  {ratings.imdbVotes != null && (
+                    <span className="font-normal opacity-70">({formatVotes(ratings.imdbVotes)})</span>
+                  )}
+                </span>
+              )}
+              {ratings?.kp != null && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#FF6600] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  КП {ratings.kp.toFixed(1)}
+                  {ratings.kpVotes != null && (
+                    <span className="font-normal opacity-80">({formatVotes(ratings.kpVotes)})</span>
+                  )}
+                </span>
+              )}
+              {ratings && ratings.imdb == null && ratings.kp == null && (
+                <span className="text-[10px] text-text-muted">Нет данных</span>
+              )}
+            </div>
+          )}
         </div>
         {movie.genres.length > 0 && (
           <div className="flex flex-wrap gap-1">

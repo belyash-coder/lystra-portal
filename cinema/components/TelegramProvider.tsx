@@ -33,6 +33,12 @@ declare global {
         expand: () => void;
         initData: string;
         colorScheme?: string;
+        BackButton?: {
+          show: () => void;
+          hide: () => void;
+          onClick: (cb: () => void) => void;
+          offClick: (cb: () => void) => void;
+        };
       };
     };
   }

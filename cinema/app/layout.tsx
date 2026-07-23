@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Script from 'next/script';
 import './globals.css';
 import { TelegramProvider } from '@/components/TelegramProvider';
+import { TelegramBackButton } from '@/components/TelegramBackButton';
 import { AuthGate } from '@/components/AuthGate';
 import { Header } from '@/components/Header';
 
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <TelegramProvider>
+          <TelegramBackButton />
           <AuthGate>
             <Header />
             <main className="mx-auto max-w-5xl px-4 pb-16 pt-4">{children}</main>

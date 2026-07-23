@@ -19,6 +19,31 @@ interface Filters {
 
 const DEFAULT_FILTERS: Filters = { genreId: 'ALL', yearFrom: '', yearTo: '', minRating: '', sort: 'popularity' };
 
+function readFiltersFromUrl(): Filters {
+  if (typeof window === 'undefined') return DEFAULT_FILTERS;
+  const params = new URLSearchParams(window.location.search);
+  return {
+    genreId: params.get('genreId') ?? DEFAULT_FILTERS.genreId,
+    yearFrom: params.get('yearFrom') ?? DEFAULT_FILTERS.yearFrom,
+    yearTo: params.get('yearTo') ?? DEFAULT_FILTERS.yearTo,
+    minRating: params.get('minRating') ?? DEFAULT_FILTERS.minRating,
+    sort: (params.get('sort') as CatalogSort) || DEFAULT_FILTERS.sort,
+  };
+}
+
+function writeFiltersToUrl(f: Filters) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams();
+  if (f.genreId !== 'ALL') params.set('genreId', f.genreId);
+  if (f.yearFrom) params.set('yearFrom', f.yearFrom);
+  if (f.yearTo) params.set('yearTo', f.yearTo);
+  if (f.minRating) params.set('minRating', f.minRating);
+  if (f.sort !== 'popularity') params.set('sort', f.sort);
+  const qs = params.toString();
+  const url = window.location.pathname + (qs ? `?${qs}` : '');
+  window.history.replaceState(window.history.state, '', url);
+}
+
 function countActive(f: Filters): number {
   let n = 0;
   if (f.genreId !== 'ALL') n++;
@@ -46,8 +71,8 @@ export function FeedGrid({
 
   const [genres, setGenres] = useState<TmdbGenre[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS);
-  const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
+  const [applied, setApplied] = useState<Filters>(() => (showFilters ? readFiltersFromUrl() : DEFAULT_FILTERS));
+  const [draft, setDraft] = useState<Filters>(() => (showFilters ? readFiltersFromUrl() : DEFAULT_FILTERS));
 
   useEffect(() => {
     if (!showFilters) return;
@@ -110,12 +135,14 @@ export function FeedGrid({
 
   function applyFilters() {
     setApplied(draft);
+    writeFiltersToUrl(draft);
     setPanelOpen(false);
   }
 
   function resetFilters() {
     setDraft(DEFAULT_FILTERS);
     setApplied(DEFAULT_FILTERS);
+    writeFiltersToUrl(DEFAULT_FILTERS);
     setPanelOpen(false);
   }
 

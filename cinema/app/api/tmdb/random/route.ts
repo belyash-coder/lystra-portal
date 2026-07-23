@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth';
 import { randomDiscoverMovie, TMDB_POSTER_BASE, type RandomDiscoverFilters, type MediaType } from '@/lib/tmdb';
-import { pickHonestRandomMovie, fetchDisplayRatings, type MediaTypeFilter } from '@/lib/honestRandomizer';
+import { pickHonestRandomMovie, type MediaTypeFilter } from '@/lib/honestRandomizer';
 import { attachLibraryInfo } from '@/lib/libraryLookup';
 
 function resolveMediaType(filter: MediaTypeFilter): MediaType {
@@ -55,7 +55,8 @@ export async function GET(request: Request) {
     const movie = await randomDiscoverMovie(mediaType, filters);
     if (!movie) return NextResponse.json({ movie: null });
 
-    const { imdb, kp } = await fetchDisplayRatings(mediaType, movie.id);
+    // IMDb/КП рейтинги здесь не запрашиваются заранее — карточка подтягивает их
+    // по нажатию, чтобы не тратить лимит OMDb на каждый спин.
     const mapped = {
       tmdbId: movie.id,
       mediaType: movie.media_type,
@@ -64,10 +65,6 @@ export async function GET(request: Request) {
       posterUrl: movie.poster_path ? `${TMDB_POSTER_BASE}${movie.poster_path}` : null,
       releaseYear: movie.release_date ? Number(movie.release_date.slice(0, 4)) : null,
       tmdbRating: movie.vote_average,
-      imdbRating: imdb.rating,
-      imdbVotes: imdb.votes,
-      kpRating: kp.rating,
-      kpVotes: kp.votes,
     };
     const [enriched] = await attachLibraryInfo(profile.id, [mapped]);
     return NextResponse.json({ movie: enriched });

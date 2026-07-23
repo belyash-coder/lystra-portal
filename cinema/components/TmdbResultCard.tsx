@@ -2,11 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ListPlus, Loader2, X } from 'lucide-react';
+import { Plus, Trash2, ListPlus, Loader2, X, Star } from 'lucide-react';
 import { MEDIA_TYPE_LABELS, type MovieList, type TmdbListItem } from '@/lib/types';
 
 function formatVotes(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+interface ExternalRatings {
+  imdb: number | null;
+  imdbVotes: number | null;
+  kp: number | null;
+  kpVotes: number | null;
 }
 
 export function TmdbResultCard({ item }: { item: TmdbListItem }) {
@@ -20,6 +27,13 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
   const [removing, setRemoving] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [ratings, setRatings] = useState<ExternalRatings | null>(
+    item.imdbRating !== undefined || item.kpRating !== undefined
+      ? { imdb: item.imdbRating ?? null, imdbVotes: item.imdbVotes ?? null, kp: item.kpRating ?? null, kpVotes: item.kpVotes ?? null }
+      : null
+  );
+  const [ratingsShown, setRatingsShown] = useState(false);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
 
   async function ensureCatalogued(): Promise<string | null> {
     if (movieId) return movieId;
@@ -123,7 +137,28 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
     }
   }
 
-  const hasExternalRatings = item.imdbRating != null || item.kpRating != null;
+  async function toggleRatings() {
+    if (ratingsShown) {
+      setRatingsShown(false);
+      return;
+    }
+    if (ratings === null) {
+      setRatingsLoading(true);
+      try {
+        const res = await fetch(`/api/tmdb/ratings?tmdbId=${item.tmdbId}&mediaType=${item.mediaType}`);
+        const data = res.ok ? await res.json() : null;
+        setRatings({
+          imdb: data?.imdb?.rating ?? null,
+          imdbVotes: data?.imdb?.votes ?? null,
+          kp: data?.kp?.rating ?? null,
+          kpVotes: data?.kp?.votes ?? null,
+        });
+      } finally {
+        setRatingsLoading(false);
+      }
+    }
+    setRatingsShown(true);
+  }
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
@@ -158,23 +193,34 @@ export function TmdbResultCard({ item }: { item: TmdbListItem }) {
             <h3 className="line-clamp-2 text-sm font-semibold leading-tight hover:text-lavender">{item.title}</h3>
           </button>
           <p className="text-xs text-text-muted">{item.releaseYear ?? '—'}</p>
-          {hasExternalRatings && (
+          <button
+            onClick={toggleRatings}
+            disabled={ratingsLoading}
+            className="mt-1 flex w-fit items-center gap-1 rounded-md bg-background px-1.5 py-0.5 text-[10px] text-text-muted hover:text-lavender disabled:opacity-60"
+          >
+            {ratingsLoading ? <Loader2 className="animate-spin" size={10} /> : <Star size={10} />}
+            {ratingsShown ? 'Скрыть рейтинги' : 'IMDb / КП'}
+          </button>
+          {ratingsShown && (
             <div className="mt-1 flex flex-wrap gap-1">
-              {item.imdbRating != null && (
+              {ratings?.imdb != null && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-[#F5C518] px-1.5 py-0.5 text-[10px] font-bold text-black">
-                  IMDb {item.imdbRating.toFixed(1)}
-                  {item.imdbVotes != null && (
-                    <span className="font-normal opacity-70">({formatVotes(item.imdbVotes)})</span>
+                  IMDb {ratings.imdb.toFixed(1)}
+                  {ratings.imdbVotes != null && (
+                    <span className="font-normal opacity-70">({formatVotes(ratings.imdbVotes)})</span>
                   )}
                 </span>
               )}
-              {item.kpRating != null && (
+              {ratings?.kp != null && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-[#FF6600] px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  КП {item.kpRating.toFixed(1)}
-                  {item.kpVotes != null && (
-                    <span className="font-normal opacity-80">({formatVotes(item.kpVotes)})</span>
+                  КП {ratings.kp.toFixed(1)}
+                  {ratings.kpVotes != null && (
+                    <span className="font-normal opacity-80">({formatVotes(ratings.kpVotes)})</span>
                   )}
                 </span>
+              )}
+              {ratings && ratings.imdb == null && ratings.kp == null && (
+                <span className="text-[10px] text-text-muted">Нет данных</span>
               )}
             </div>
           )}
