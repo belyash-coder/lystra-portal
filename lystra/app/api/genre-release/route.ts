@@ -47,7 +47,59 @@ async function fetchArtistAlbums(artistId: number): Promise<any[]> {
   }
 }
 
-async function tryTagPage(tag: string, totalPages: number): Promise<MatchedArtist | null> {
+async function fetchFullAlbum(albumId: number): Promise<any | null> {
+  try {
+    const res = await fetch(`https://api.deezer.com/album/${albumId}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Last.fm — фолксономия: кто угодно мог протегать артиста неточно, это в
+// принципе не проверить (нет "правильного" ответа, есть только чужое
+// мнение). Но грубый промах мимо целой ЖАНРОВОЙ СЕМЬИ (искали рок, а
+// получили рэп/шансон/поп) можно поймать - у Deezer есть собственная
+// жанровая классификация альбома (genres в ответе /album/{id}), уже
+// используется в другом месте приложения (экран "Новинки"). Сверяем грубо,
+// по семьям, а не точным поджанрам - Deezer и не различает "glam metal" от
+// "nu metal", только широкие категории вроде "Rock"/"Metal".
+const GENRE_FAMILY_KEYWORDS: Record<string, string[]> = {
+  rock: ['rock', 'metal', 'punk', 'grunge', 'emo', 'hardcore', 'screamo', 'shoegaze', 'gothic'],
+  rap: ['rap', 'hip hop', 'hiphop', 'trap', 'grime', 'drill'],
+  pop: ['pop', 'k-pop', 'j-pop'],
+  electronic: ['electro', 'techno', 'house', 'edm', 'trance', 'dubstep', 'drum and bass', 'dnb', 'ambient'],
+  jazz: ['jazz'],
+  classical: ['classical', 'orchestra', 'symphony', 'opera'],
+  reggae: ['reggae', 'ska', 'dancehall', 'dub'],
+  country: ['country', 'folk', 'bluegrass', 'americana'],
+  blues: ['blues'],
+  rnb: ['r&b', 'rnb', 'soul', 'funk'],
+  latin: ['latin', 'reggaeton', 'salsa', 'bachata', 'cumbia', 'sierreno', 'norteno', 'corrido'],
+  chanson: ['chanson', 'estrada', 'шансон'],
+};
+
+function guessGenreFamily(text: string): string | null {
+  const lower = (text || '').toLowerCase();
+  for (const [family, keywords] of Object.entries(GENRE_FAMILY_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw))) return family;
+  }
+  return null;
+}
+
+// requestedFamily=null - не смогли распознать семью запроса (нишевый жанр
+// без явных ключевых слов) - тогда не отклоняем, доверяем Last.fm как раньше.
+function albumMatchesFamily(album: any, requestedFamily: string | null): boolean {
+  if (!requestedFamily) return true;
+  const deezerGenreNames: string[] = (album?.genres?.data || []).map((g: any) => g?.name || '');
+  if (deezerGenreNames.length === 0) return true; // у Deezer нет данных - нечем проверить, не отклоняем
+  return deezerGenreNames.some((name) => guessGenreFamily(name) === requestedFamily);
+}
+
+const MAX_ALBUM_GENRE_ATTEMPTS = 3;
+
+async function tryTagPage(tag: string, totalPages: number, requestedFamily: string | null): Promise<MatchedArtist | null> {
   const page = 1 + Math.floor(Math.random() * Math.min(totalPages, MAX_LASTFM_PAGE_CAP));
   const candidates = await fetchLastfmTopArtists(tag, page);
   if (candidates.length === 0) return null;
@@ -69,7 +121,20 @@ async function tryTagPage(tag: string, totalPages: number): Promise<MatchedArtis
     const properAlbums = albums.filter((a) => a.record_type === 'album');
     if (properAlbums.length === 0) continue;
 
-    return { artist: found, albums: properAlbums };
+    if (!requestedFamily) return { artist: found, albums: properAlbums };
+
+    // Пробуем несколько альбомов этого артиста - ищем хотя бы один, чей
+    // жанр в Deezer совпадает с ожидаемой жанровой семьёй запроса. У артиста
+    // может быть несколько альбомов разных эпох/направлений - одного промаха
+    // недостаточно, чтобы отвергать артиста целиком.
+    const sampledAlbums = properAlbums.sort(() => Math.random() - 0.5).slice(0, MAX_ALBUM_GENRE_ATTEMPTS);
+    const fetchedFull = await Promise.all(sampledAlbums.map((a) => fetchFullAlbum(a.id)));
+    const verifiedIds = new Set(
+      fetchedFull.filter((a) => a && albumMatchesFamily(a, requestedFamily)).map((a) => a.id)
+    );
+    const verifiedAlbums = sampledAlbums.filter((a) => verifiedIds.has(a.id));
+    if (verifiedAlbums.length > 0) return { artist: found, albums: verifiedAlbums };
+    // ни один сэмпл не подошёл по жанровой семье - не тот артист, следующий кандидат
   }
   return null;
 }
@@ -104,21 +169,12 @@ async function findMatchedArtist(tag: string): Promise<MatchedArtist | null> {
   const totalPages = await fetchLastfmTagArtistPageCount(tag);
   if (totalPages === 0) return null;
 
+  const requestedFamily = guessGenreFamily(tag);
   for (let attempt = 0; attempt < MAX_PAGE_ATTEMPTS; attempt++) {
-    const match = await tryTagPage(tag, totalPages);
+    const match = await tryTagPage(tag, totalPages, requestedFamily);
     if (match) return match;
   }
   return null;
-}
-
-async function fetchFullAlbum(albumId: number): Promise<any | null> {
-  try {
-    const res = await fetch(`https://api.deezer.com/album/${albumId}`);
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
 }
 
 export async function GET(request: Request) {
