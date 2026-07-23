@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth';
-import { fetchPopular, fetchTrendingAll, fetchAnimation, TMDB_POSTER_BASE, type MediaType } from '@/lib/tmdb';
+import {
+  discoverPage,
+  fetchTrendingAll,
+  TMDB_POSTER_BASE,
+  ANIMATION_GENRE_ID,
+  type MediaType,
+  type CatalogSort,
+  type DiscoverFilters,
+} from '@/lib/tmdb';
 import { attachLibraryInfo } from '@/lib/libraryLookup';
 import type { FeedName } from '@/lib/types';
 
@@ -15,6 +23,14 @@ export async function GET(request: Request) {
   const mediaTypeParam = searchParams.get('mediaType');
   const mediaType: MediaType = mediaTypeParam === 'tv' ? 'tv' : 'movie';
   const page = Math.max(1, Number(searchParams.get('page') ?? '1'));
+  const sort = (searchParams.get('sort') as CatalogSort) || 'popularity';
+
+  const filters: DiscoverFilters = {
+    genreId: searchParams.get('genreId') ?? undefined,
+    yearFrom: searchParams.get('yearFrom') ?? undefined,
+    yearTo: searchParams.get('yearTo') ?? undefined,
+    minRating: searchParams.get('minRating') ?? undefined,
+  };
 
   if (!feed || !['trending', 'popular', 'animation'].includes(feed)) {
     return NextResponse.json({ message: 'Некорректная лента' }, { status: 400 });
@@ -29,11 +45,18 @@ export async function GET(request: Request) {
       results = data.results;
       hasMore = page < data.totalPages;
     } else if (feed === 'popular') {
-      const data = await fetchPopular(mediaType, page);
+      const data = await discoverPage(mediaType, filters, sort, page);
       results = data.results;
       hasMore = page < data.totalPages;
     } else {
-      const [movies, tv] = await Promise.all([fetchAnimation('movie', page), fetchAnimation('tv', page)]);
+      const animationFilters: DiscoverFilters = {
+        ...filters,
+        genreId: filters.genreId ? `${ANIMATION_GENRE_ID},${filters.genreId}` : String(ANIMATION_GENRE_ID),
+      };
+      const [movies, tv] = await Promise.all([
+        discoverPage('movie', animationFilters, sort, page),
+        discoverPage('tv', animationFilters, sort, page),
+      ]);
       results = [...movies.results, ...tv.results];
       hasMore = page < Math.max(movies.totalPages, tv.totalPages);
     }

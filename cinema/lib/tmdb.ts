@@ -86,32 +86,12 @@ interface PagedResult {
   totalPages: number;
 }
 
-export async function fetchPopular(mediaType: MediaType, page: number): Promise<PagedResult> {
-  const data = await tmdbFetch(`/${mediaType}/popular`, { page: String(page) });
-  return {
-    results: (data.results ?? []).map((r: object) => normalizeResult(r, mediaType)),
-    totalPages: Math.min(data.total_pages ?? 1, 500),
-  };
-}
-
 export async function fetchTrendingAll(page: number): Promise<PagedResult> {
   const data = await tmdbFetch('/trending/all/day', { page: String(page) });
   const results = (data.results ?? [])
     .filter((r: { media_type: string }) => r.media_type === 'movie' || r.media_type === 'tv')
     .map((r: { media_type: MediaType }) => normalizeResult(r, r.media_type));
   return { results, totalPages: Math.min(data.total_pages ?? 1, 500) };
-}
-
-export async function fetchAnimation(mediaType: MediaType, page: number): Promise<PagedResult> {
-  const data = await tmdbFetch(`/discover/${mediaType}`, {
-    page: String(page),
-    with_genres: String(ANIMATION_GENRE_ID),
-    sort_by: 'popularity.desc',
-  });
-  return {
-    results: (data.results ?? []).map((r: object) => normalizeResult(r, mediaType)),
-    totalPages: Math.min(data.total_pages ?? 1, 500),
-  };
 }
 
 export interface TmdbGenre {
@@ -124,16 +104,20 @@ export async function getGenreList(mediaType: MediaType): Promise<TmdbGenre[]> {
   return data.genres ?? [];
 }
 
-export interface RandomDiscoverFilters {
+export interface DiscoverFilters {
   genreId?: string;
   countryCode?: string;
   yearFrom?: string;
   yearTo?: string;
+  minRating?: string;
 }
 
-const SORT_OPTIONS = ['popularity.desc', 'vote_average.desc', 'vote_count.desc'];
+// Оставлено для обратной совместимости импортов.
+export type RandomDiscoverFilters = DiscoverFilters;
 
-function buildDiscoverParams(mediaType: MediaType, filters: RandomDiscoverFilters, sortBy: string): Record<string, string> {
+const RANDOM_SORT_OPTIONS = ['popularity.desc', 'vote_average.desc', 'vote_count.desc'];
+
+function buildDiscoverParams(mediaType: MediaType, filters: DiscoverFilters, sortBy: string): Record<string, string> {
   const params: Record<string, string> = {
     include_adult: 'false',
     sort_by: sortBy,
@@ -141,6 +125,7 @@ function buildDiscoverParams(mediaType: MediaType, filters: RandomDiscoverFilter
   };
   if (filters.genreId) params.with_genres = filters.genreId;
   if (filters.countryCode) params.with_origin_country = filters.countryCode;
+  if (filters.minRating) params['vote_average.gte'] = filters.minRating;
   const dateField = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';
   if (filters.yearFrom) params[`${dateField}.gte`] = `${filters.yearFrom}-01-01`;
   if (filters.yearTo) params[`${dateField}.lte`] = `${filters.yearTo}-12-31`;
@@ -151,9 +136,9 @@ function buildDiscoverParams(mediaType: MediaType, filters: RandomDiscoverFilter
 // чтобы пул кандидатов не был всегда смещён к самым раскрученным тайтлам.
 export async function discoverCandidatePage(
   mediaType: MediaType,
-  filters: RandomDiscoverFilters
+  filters: DiscoverFilters
 ): Promise<PagedResult> {
-  const sortBy = SORT_OPTIONS[Math.floor(Math.random() * SORT_OPTIONS.length)];
+  const sortBy = RANDOM_SORT_OPTIONS[Math.floor(Math.random() * RANDOM_SORT_OPTIONS.length)];
   const params = buildDiscoverParams(mediaType, filters, sortBy);
 
   const firstPage = await tmdbFetch(`/discover/${mediaType}`, { ...params, page: '1' });
@@ -169,11 +154,51 @@ export async function discoverCandidatePage(
 
 export async function randomDiscoverMovie(
   mediaType: MediaType,
-  filters: RandomDiscoverFilters
+  filters: DiscoverFilters
 ): Promise<TmdbSearchResult | null> {
   const { results } = await discoverCandidatePage(mediaType, filters);
   if (results.length === 0) return null;
   return results[Math.floor(Math.random() * results.length)];
+}
+
+export type CatalogSort = 'popularity' | 'rating' | 'newest' | 'oldest';
+
+export const CATALOG_SORT_LABELS: Record<CatalogSort, string> = {
+  popularity: 'Популярные',
+  rating: 'По рейтингу TMDB',
+  newest: 'Сначала новые',
+  oldest: 'Сначала старые',
+};
+
+function resolveCatalogSortBy(mediaType: MediaType, sort: CatalogSort): string {
+  const dateField = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';
+  switch (sort) {
+    case 'rating':
+      return 'vote_average.desc';
+    case 'newest':
+      return `${dateField}.desc`;
+    case 'oldest':
+      return `${dateField}.asc`;
+    case 'popularity':
+    default:
+      return 'popularity.desc';
+  }
+}
+
+// Обычная (не случайная) страница каталога — для разделов "Фильмы"/"Сериалы"/"Мультфильмы"
+// с явными фильтрами и сортировкой от пользователя.
+export async function discoverPage(
+  mediaType: MediaType,
+  filters: DiscoverFilters,
+  sort: CatalogSort,
+  page: number
+): Promise<PagedResult> {
+  const params = buildDiscoverParams(mediaType, filters, resolveCatalogSortBy(mediaType, sort));
+  const data = await tmdbFetch(`/discover/${mediaType}`, { ...params, page: String(page) });
+  return {
+    results: (data.results ?? []).map((r: object) => normalizeResult(r, mediaType)),
+    totalPages: Math.min(data.total_pages ?? 1, 500),
+  };
 }
 
 export async function getExternalImdbId(mediaType: MediaType, tmdbId: number): Promise<string | null> {
