@@ -161,6 +161,21 @@ export async function fetchLastfmCandidates(tag: string, page = 1): Promise<Cand
   }
 }
 
+// Сколько всего страниц по 50 треков есть у тега - используется, чтобы
+// выбирать честно случайную страницу вместо угаданного вслепую диапазона.
+export async function fetchLastfmTagPageCount(tag: string): Promise<number> {
+  if (!LASTFM_API_KEY) return 0;
+  try {
+    const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_API_KEY}&format=json&limit=50&page=1`;
+    const res = await fetch(url);
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return Number(data?.tracks?.['@attr']?.totalPages) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function findDeezerPreview(candidate: Candidate): Promise<any | null> {
   try {
     // Обычный текстовый поиск вместо строгого artist:"" track:"" — у Deezer и
