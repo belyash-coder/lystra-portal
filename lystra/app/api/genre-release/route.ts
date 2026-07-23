@@ -15,6 +15,22 @@ const MAX_LASTFM_PAGE_CAP = 20;
 // жанровый тег.
 const MAX_PAGE_ATTEMPTS = 2;
 
+// search/artist у Deezer — нечёткий текстовый поиск: на неточном/неполном
+// совпадении он может вместо пустого ответа подсунуть более раскрученного
+// артиста с похожим или даже просто общим по звучанию именем (живой тест:
+// "Glam Metal" внезапно обернулся "Cloud Rap"). Раньше это никак не
+// проверялось - брали первый результат с непустым id. Теперь требуем, чтобы
+// имя реально совпадало (без учёта регистра/диакритики/пунктуации), иначе
+// это не тот артист, что дал нам Last.fm, а левый тёзка.
+function normalizeArtistName(name: string): string {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 async function tryTagPage(tag: string, totalPages: number): Promise<any | null> {
   const page = 1 + Math.floor(Math.random() * Math.min(totalPages, MAX_LASTFM_PAGE_CAP));
   const candidates = await fetchLastfmTopArtists(tag, page);
@@ -22,8 +38,13 @@ async function tryTagPage(tag: string, totalPages: number): Promise<any | null> 
 
   const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, MAX_MATCH_ATTEMPTS);
   const resolved = await Promise.all(shuffled.map((c) => searchDeezerArtist(c.name)));
-  const match = resolved.find((a) => a?.id && !isCompilationArtist(a.name));
-  return match || null;
+
+  for (let i = 0; i < resolved.length; i++) {
+    const found = resolved[i];
+    if (!found?.id || isCompilationArtist(found.name)) continue;
+    if (normalizeArtistName(found.name) === normalizeArtistName(shuffled[i].name)) return found;
+  }
+  return null;
 }
 
 interface MappedTrack {
