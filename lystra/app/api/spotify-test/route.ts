@@ -8,6 +8,19 @@ export const dynamic = 'force-dynamic';
 // части приложений без "extended quota mode") и как ведёт себя с нашего IP.
 // Ничего не мапим и не встраиваем в приложение - только для ручной проверки.
 
+// Не доверяем res.json() напрямую - если Spotify отвечает не-2xx статусом с
+// пустым или не-JSON телом (например 404/403 без тела, или HTML-страница
+// ошибки), res.json() падает с невыразительным "Unexpected end of JSON
+// input" вместо того, чтобы показать реальный статус/содержимое.
+async function safeReadJson(res: Response): Promise<{ parsed: any; raw: string }> {
+  const raw = await res.text();
+  try {
+    return { parsed: raw ? JSON.parse(raw) : null, raw };
+  } catch {
+    return { parsed: null, raw };
+  }
+}
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getSpotifyToken(): Promise<string> {
@@ -29,16 +42,16 @@ async function getSpotifyToken(): Promise<string> {
     },
     body: 'grant_type=client_credentials',
   });
+  const { parsed, raw } = await safeReadJson(res);
   if (!res.ok) {
-    const bodyText = await res.text().catch(() => '');
     // Длину id/secret отдаём вместо самих значений - чтобы поймать частую
     // причину (случайно вставленный лишний пробел/перенос строки), не
     // засвечивая сам секрет в ответе.
     throw new Error(
-      `Spotify token ответил ${res.status}: ${bodyText} (clientId length=${clientId.length}, clientSecret length=${clientSecret.length})`
+      `Spotify token ответил ${res.status}: ${raw} (clientId length=${clientId.length}, clientSecret length=${clientSecret.length})`
     );
   }
-  const data = await res.json();
+  const data = parsed;
   // Токен client-credentials живёт час - кэшируем, чтобы не ходить за ним
   // на каждый тестовый запрос.
   cachedToken = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 };
@@ -74,8 +87,11 @@ export async function GET(request: Request) {
     }
 
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    return NextResponse.json({ requestedUrl: url, status: res.status, data }, { headers: { 'Cache-Control': 'no-store' } });
+    const { parsed, raw } = await safeReadJson(res);
+    return NextResponse.json(
+      { requestedUrl: url, status: res.status, data: parsed ?? raw },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
