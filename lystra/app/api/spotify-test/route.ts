@@ -13,8 +13,11 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 async function getSpotifyToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.token;
 
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  // .trim() - частая причина 400 у только что вставленных в Coolify секретов:
+  // копипаст из терминала/файла нередко тащит за собой завершающий перевод
+  // строки, и он попадает прямо в Authorization-заголовок.
+  const clientId = process.env.SPOTIFY_CLIENT_ID?.trim();
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) throw new Error('SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET не настроены');
 
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
@@ -26,7 +29,15 @@ async function getSpotifyToken(): Promise<string> {
     },
     body: 'grant_type=client_credentials',
   });
-  if (!res.ok) throw new Error(`Spotify token ответил ${res.status}`);
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '');
+    // Длину id/secret отдаём вместо самих значений - чтобы поймать частую
+    // причину (случайно вставленный лишний пробел/перенос строки), не
+    // засвечивая сам секрет в ответе.
+    throw new Error(
+      `Spotify token ответил ${res.status}: ${bodyText} (clientId length=${clientId.length}, clientSecret length=${clientSecret.length})`
+    );
+  }
   const data = await res.json();
   // Токен client-credentials живёт час - кэшируем, чтобы не ходить за ним
   // на каждый тестовый запрос.
