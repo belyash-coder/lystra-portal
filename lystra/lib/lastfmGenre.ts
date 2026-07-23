@@ -135,10 +135,16 @@ export function getFallbackTag(genre: string): string | null {
 // самих пользователей (folksonomy) — они гораздо точнее совпадают именно с
 // такими ярлыками. Last.fm не отдаёт превью для проигрывания, поэтому находим
 // трек там (точный жанр), а само превью ищем по названию+артисту в Deezer.
-export async function fetchLastfmCandidates(tag: string): Promise<Candidate[]> {
+// page по умолчанию 1 (первая, самая популярная полусотня тега) - именно
+// так это годами используется в spotify-mix, и это не трогаем. Но при
+// подборе одного артиста (genre-release) page=1 означает, что каждый спин
+// тасует одну и ту же полусотню самых раскрученных треков тега - отсюда и
+// "всегда только топы". Параметр даёт возможность взять случайную страницу
+// подальше от самой вершины чарта тега, не трогая поведение по умолчанию.
+export async function fetchLastfmCandidates(tag: string, page = 1): Promise<Candidate[]> {
   if (!LASTFM_API_KEY) return [];
   try {
-    const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_API_KEY}&format=json&limit=50`;
+    const url = `https://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag=${encodeURIComponent(tag)}&api_key=${LASTFM_API_KEY}&format=json&limit=50&page=${page}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();

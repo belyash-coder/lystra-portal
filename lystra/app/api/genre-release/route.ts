@@ -4,6 +4,11 @@ import { getFallbackTag, fetchLastfmCandidates, findDeezerPreview } from '@/lib/
 export const dynamic = 'force-dynamic';
 
 const MAX_MATCH_ATTEMPTS = 15;
+// Last.fm tag.gettoptracks без параметра page всегда отдаёт одну и ту же
+// полусотню САМЫХ популярных треков тега - шафл внутри неё почти всегда
+// выносит одних и тех же раскрученных исполнителей ("всегда только топы").
+// Берём случайную страницу подальше от вершины чарта тега для разнообразия.
+const MAX_LASTFM_PAGE = 10;
 
 interface MappedTrack {
   id: string;
@@ -31,7 +36,14 @@ function isCompilationArtist(name: string): boolean {
 // поджанры, чем родные теги Deezer), но нам нужен не список из 10 треков, а
 // всего один надёжно подтверждённый артист, от которого дальше оттолкнуться.
 async function findMatchedArtist(tag: string): Promise<any | null> {
-  const candidates = await fetchLastfmCandidates(tag);
+  const page = 1 + Math.floor(Math.random() * MAX_LASTFM_PAGE);
+  let candidates = await fetchLastfmCandidates(tag, page);
+  // Случайная страница может оказаться пустой (у тега банально нет столько
+  // размеченных треков) - откатываемся на первую страницу, чтобы не терять
+  // жанр целиком из-за неудачного случайного номера страницы.
+  if (candidates.length === 0 && page !== 1) {
+    candidates = await fetchLastfmCandidates(tag, 1);
+  }
   if (candidates.length === 0) return null;
 
   const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, MAX_MATCH_ATTEMPTS);
