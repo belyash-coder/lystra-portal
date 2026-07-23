@@ -90,10 +90,19 @@ function guessGenreFamily(text: string): string | null {
 
 // requestedFamily=null - не смогли распознать семью запроса (нишевый жанр
 // без явных ключевых слов) - тогда не отклоняем, доверяем Last.fm как раньше.
+//
+// Живой тест поймал явный промах, который раньше проходил незамеченным:
+// "Russian Emo" вернул патриотический казачий хор ("80-летию Великой Победы
+// посвящается", песни вроде "Ойся") - у этого обскурного релиза попросту не
+// было жанровых данных в Deezer, а раньше отсутствие данных трактовалось как
+// "нечем проверить - пропускаем". Теперь отсутствие данных - тоже отказ:
+// нечем подтвердить соответствие жанру, значит не считаем это совпадением.
+// Компромисс осознанный - вырастет процент честного "не найдено" на редких
+// релизах без жанра в Deezer, даже если тег Last.fm был на самом деле верным.
 function albumMatchesFamily(album: any, requestedFamily: string | null): boolean {
   if (!requestedFamily) return true;
   const deezerGenreNames: string[] = (album?.genres?.data || []).map((g: any) => g?.name || '');
-  if (deezerGenreNames.length === 0) return true; // у Deezer нет данных - нечем проверить, не отклоняем
+  if (deezerGenreNames.length === 0) return false;
   return deezerGenreNames.some((name) => guessGenreFamily(name) === requestedFamily);
 }
 
