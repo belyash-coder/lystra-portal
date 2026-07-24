@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth';
 import {
   discoverPage,
+  discoverPageStableDate,
   fetchTrendingAll,
   TMDB_POSTER_BASE,
   ANIMATION_GENRE_ID,
@@ -45,20 +46,39 @@ export async function GET(request: Request) {
       results = data.results;
       hasMore = page < data.totalPages;
     } else if (feed === 'popular') {
-      const data = await discoverPage(mediaType, filters, sort, page);
-      results = data.results;
-      hasMore = page < data.totalPages;
+      if (sort === 'newest' || sort === 'oldest') {
+        const data = await discoverPageStableDate([{ mediaType, filters }], sort, page);
+        results = data.results;
+        hasMore = data.hasMore;
+      } else {
+        const data = await discoverPage(mediaType, filters, sort, page);
+        results = data.results;
+        hasMore = page < data.totalPages;
+      }
     } else {
       const animationFilters: DiscoverFilters = {
         ...filters,
         genreId: filters.genreId ? `${ANIMATION_GENRE_ID},${filters.genreId}` : String(ANIMATION_GENRE_ID),
       };
-      const [movies, tv] = await Promise.all([
-        discoverPage('movie', animationFilters, sort, page),
-        discoverPage('tv', animationFilters, sort, page),
-      ]);
-      results = [...movies.results, ...tv.results];
-      hasMore = page < Math.max(movies.totalPages, tv.totalPages);
+      if (sort === 'newest' || sort === 'oldest') {
+        const data = await discoverPageStableDate(
+          [
+            { mediaType: 'movie', filters: animationFilters },
+            { mediaType: 'tv', filters: animationFilters },
+          ],
+          sort,
+          page
+        );
+        results = data.results;
+        hasMore = data.hasMore;
+      } else {
+        const [movies, tv] = await Promise.all([
+          discoverPage('movie', animationFilters, sort, page),
+          discoverPage('tv', animationFilters, sort, page),
+        ]);
+        results = [...movies.results, ...tv.results];
+        hasMore = page < Math.max(movies.totalPages, tv.totalPages);
+      }
     }
 
     const mapped = results.map((item) => ({

@@ -41,6 +41,12 @@ export function GlobalSearch() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
+  function openAllResults() {
+    if (!query.trim()) return;
+    setOpen(false);
+    router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+  }
+
   async function openItem(item: TmdbListItem) {
     setOpeningId(item.tmdbId);
     try {
@@ -71,6 +77,7 @@ export function GlobalSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.trim() && setOpen(true)}
+          onKeyDown={(e) => e.key === 'Enter' && openAllResults()}
           placeholder="Поиск фильмов и сериалов..."
           className="w-full rounded-full border border-white/10 bg-surface py-2 pl-9 pr-9 text-sm focus:border-lavender focus:outline-none"
         />
@@ -97,29 +104,37 @@ export function GlobalSearch() {
           ) : results.length === 0 ? (
             <p className="py-4 text-center text-sm text-text-muted">Ничего не найдено</p>
           ) : (
-            results.map((item) => (
+            <>
+              {results.map((item) => (
+                <button
+                  key={`${item.mediaType}-${item.tmdbId}`}
+                  onClick={() => openItem(item)}
+                  disabled={openingId === item.tmdbId}
+                  className="flex w-full items-center gap-3 p-2 text-left hover:bg-surface-hover disabled:opacity-60"
+                >
+                  {item.posterUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.posterUrl} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
+                  ) : (
+                    <div className="h-14 w-10 shrink-0 rounded bg-neutral-800" />
+                  )}
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="truncate font-medium">{item.title}</p>
+                    <p className="text-xs text-text-muted">
+                      {MEDIA_TYPE_LABELS[item.mediaType]}
+                      {item.releaseYear ? ` · ${item.releaseYear}` : ''}
+                    </p>
+                  </div>
+                  {openingId === item.tmdbId && <Loader2 className="animate-spin text-text-muted" size={16} />}
+                </button>
+              ))}
               <button
-                key={`${item.mediaType}-${item.tmdbId}`}
-                onClick={() => openItem(item)}
-                disabled={openingId === item.tmdbId}
-                className="flex w-full items-center gap-3 p-2 text-left hover:bg-surface-hover disabled:opacity-60"
+                onClick={openAllResults}
+                className="w-full border-t border-white/10 p-2.5 text-center text-sm font-medium text-lavender hover:bg-surface-hover"
               >
-                {item.posterUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.posterUrl} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
-                ) : (
-                  <div className="h-14 w-10 shrink-0 rounded bg-neutral-800" />
-                )}
-                <div className="min-w-0 flex-1 text-sm">
-                  <p className="truncate font-medium">{item.title}</p>
-                  <p className="text-xs text-text-muted">
-                    {MEDIA_TYPE_LABELS[item.mediaType]}
-                    {item.releaseYear ? ` · ${item.releaseYear}` : ''}
-                  </p>
-                </div>
-                {openingId === item.tmdbId && <Loader2 className="animate-spin text-text-muted" size={16} />}
+                Все результаты по «{query.trim()}» →
               </button>
-            ))
+            </>
           )}
         </div>
       )}

@@ -56,11 +56,12 @@ function normalizeResult(raw: any, mediaType: MediaType): TmdbSearchResult {
   };
 }
 
-export async function searchMulti(query: string): Promise<TmdbSearchResult[]> {
-  const data = await tmdbFetch('/search/multi', { query, include_adult: 'false' });
-  return (data.results ?? [])
+export async function searchMulti(query: string, page = 1): Promise<PagedResult> {
+  const data = await tmdbFetch('/search/multi', { query, include_adult: 'false', page: String(page) });
+  const results = (data.results ?? [])
     .filter((r: { media_type: string }) => r.media_type === 'movie' || r.media_type === 'tv')
     .map((r: { media_type: MediaType }) => normalizeResult(r, r.media_type));
+  return { results, totalPages: Math.min(data.total_pages ?? 1, 500) };
 }
 
 export interface TmdbTitleDetails extends TmdbSearchResult {
@@ -198,6 +199,64 @@ export async function discoverPage(
   return {
     results: (data.results ?? []).map((r: object) => normalizeResult(r, mediaType)),
     totalPages: Math.min(data.total_pages ?? 1, 500),
+  };
+}
+
+// TMDB discover, отсортированный по дате релиза, нестабилен на стыке страниц:
+// у многих старых тайтлов дата совпадает или отсутствует, и TMDB по-разному
+// разбивает такие совпадения в разных запросах — из-за этого "следующая
+// страница" иногда возвращает элементы из уже показанного диапазона дат.
+// Забираем сразу несколько сырых страниц TMDB на одну нашу и пересортировываем
+// их локально с детерминированным вторым ключом (id), чтобы порядок никогда
+// не откатывался назад.
+const STABLE_DATE_SORT_RAW_PAGES_PER_BATCH = 3;
+
+interface StableDateBatchResult {
+  results: TmdbSearchResult[];
+  hasMore: boolean;
+}
+
+async function fetchDiscoverRawPages(
+  mediaType: MediaType,
+  filters: DiscoverFilters,
+  sort: CatalogSort,
+  rawPages: number[]
+): Promise<{ results: TmdbSearchResult[]; totalPages: number }> {
+  const fetched = await Promise.all(rawPages.map((rawPage) => discoverPage(mediaType, filters, sort, rawPage)));
+  const totalPages = fetched.reduce((max, f) => Math.max(max, f.totalPages), 0);
+  return { results: fetched.flatMap((f) => f.results), totalPages };
+}
+
+function sortByDateStable(results: TmdbSearchResult[], sort: 'newest' | 'oldest'): TmdbSearchResult[] {
+  const multiplier = sort === 'oldest' ? 1 : -1;
+  return [...results].sort((a, b) => {
+    const dateA = a.release_date ?? '';
+    const dateB = b.release_date ?? '';
+    if (dateA !== dateB) return multiplier * dateA.localeCompare(dateB);
+    return a.id - b.id;
+  });
+}
+
+export async function discoverPageStableDate(
+  sources: { mediaType: MediaType; filters: DiscoverFilters }[],
+  sort: 'newest' | 'oldest',
+  page: number
+): Promise<StableDateBatchResult> {
+  const rawPages = Array.from(
+    { length: STABLE_DATE_SORT_RAW_PAGES_PER_BATCH },
+    (_, i) => (page - 1) * STABLE_DATE_SORT_RAW_PAGES_PER_BATCH + i + 1
+  );
+  const batches = await Promise.all(sources.map((s) => fetchDiscoverRawPages(s.mediaType, s.filters, sort, rawPages)));
+  const totalPages = Math.max(...batches.map((b) => b.totalPages));
+  const lastRawPage = rawPages[rawPages.length - 1];
+
+  // На стыке "сырых" страниц TMDB иногда сдвигает элемент между запросами —
+  // подстраховываемся от дублей в объединённом наборе.
+  const deduped = [...new Map(batches.flatMap((b) => b.results).map((r) => [r.id, r])).values()];
+
+  return {
+    results: sortByDateStable(deduped, sort),
+    hasMore: lastRawPage < totalPages,
   };
 }
 

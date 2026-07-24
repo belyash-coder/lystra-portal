@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { GlobalSearch } from './GlobalSearch';
 import { SectionsMenu } from './SectionsMenu';
 
-const SEARCH_VISIBLE_PATHS = ['/', '/movies', '/tv', '/animation'];
+const SEARCH_VISIBLE_PATHS = ['/', '/movies', '/tv', '/animation', '/search'];
 
 export function Header() {
   const pathname = usePathname();
