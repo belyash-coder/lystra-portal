@@ -305,9 +305,23 @@ export async function getTitleExtras(mediaType: MediaType, tmdbId: number): Prom
     append_to_response: 'videos,credits,similar,watch/providers',
   });
 
-  const trailer =
-    (data.videos?.results ?? []).find((v: { site: string; type: string }) => v.site === 'YouTube' && v.type === 'Trailer') ??
-    (data.videos?.results ?? []).find((v: { site: string }) => v.site === 'YouTube');
+  type TmdbVideo = { site: string; type: string; key: string };
+  const findTrailer = (videos: TmdbVideo[]) =>
+    videos.find((v) => v.site === 'YouTube' && v.type === 'Trailer') ?? videos.find((v) => v.site === 'YouTube');
+
+  let trailer = findTrailer(data.videos?.results ?? []);
+
+  // TMDB фильтрует /videos по языку запроса — а у нас он всегда ru-RU, где у
+  // большинства тайтлов трейлеров просто нет. Если по-русски не нашли —
+  // отдельно пробуем англоязычную выдачу, где трейлеры почти всегда есть.
+  if (!trailer) {
+    try {
+      const fallback = await tmdbFetch(`/${mediaType}/${tmdbId}/videos`, { language: 'en-US' });
+      trailer = findTrailer(fallback.results ?? []);
+    } catch {
+      // англоязычной выдачи тоже нет — оставляем без трейлера
+    }
+  }
 
   let creators: TmdbCreator[] = [];
   if (mediaType === 'movie') {

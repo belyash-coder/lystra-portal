@@ -201,7 +201,7 @@ export default function MovieDetailPage() {
               {extras.creators.map((c, i) => (
                 <span key={c.id}>
                   {i > 0 && ', '}
-                  <Link href={`/person/${c.id}`} className="hover:text-lavender hover:underline">
+                  <Link href={`/person/${c.id}`} className="text-lavender underline decoration-dotted underline-offset-2 hover:decoration-solid">
                     {c.name}
                   </Link>
                 </span>
