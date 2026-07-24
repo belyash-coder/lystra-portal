@@ -15,6 +15,14 @@ function formatVotes(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
+function openExternalLink(url: string) {
+  if (window.Telegram?.WebApp?.openLink) {
+    window.Telegram.WebApp.openLink(url);
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 interface ExternalRatings {
   imdb: number | null;
   imdbVotes: number | null;
@@ -236,15 +244,23 @@ export default function MovieDetailPage() {
             <Play size={16} />
             Трейлер
           </h2>
-          <div className="aspect-video w-full overflow-hidden rounded-xl">
-            <iframe
-              src={`https://www.youtube.com/embed/${extras.trailerKey}`}
-              title="Трейлер"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="h-full w-full"
+          <button
+            onClick={() => openExternalLink(`https://www.youtube.com/watch?v=${extras.trailerKey}`)}
+            className="group relative block aspect-video w-full overflow-hidden rounded-xl bg-neutral-900"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://img.youtube.com/vi/${extras.trailerKey}/hqdefault.jpg`}
+              alt="Превью трейлера"
+              className="h-full w-full object-cover"
             />
-          </div>
+            <span className="absolute inset-0 flex items-center justify-center bg-black/30 transition group-hover:bg-black/40">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-black">
+                <Play size={24} className="ml-1" fill="currentColor" />
+              </span>
+            </span>
+          </button>
+          <p className="mt-1 text-xs text-text-muted">Откроется на YouTube</p>
         </div>
       )}
 

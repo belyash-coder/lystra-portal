@@ -33,6 +33,7 @@ declare global {
         expand: () => void;
         initData: string;
         colorScheme?: string;
+        openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
         BackButton?: {
           show: () => void;
           hide: () => void;
