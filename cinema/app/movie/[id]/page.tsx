@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Play, Loader2, Star } from 'lucide-react';
 import { StatusSelect } from '@/components/StatusSelect';
@@ -33,9 +34,14 @@ interface WatchProvider {
   logoUrl: string;
 }
 
+interface Creator {
+  id: number;
+  name: string;
+}
+
 interface Extras {
   trailerKey: string | null;
-  creators: string | null;
+  creators: Creator[];
   cast: CastMember[];
   similar: TmdbListItem[];
   watchProviders: { link: string | null; flatrate: WatchProvider[]; rent: WatchProvider[]; buy: WatchProvider[] } | null;
@@ -88,7 +94,7 @@ export default function MovieDetailPage() {
         extrasData
           ? {
               trailerKey: extrasData.trailerKey ?? null,
-              creators: extrasData.creators ?? null,
+              creators: extrasData.creators ?? [],
               cast: extrasData.cast ?? [],
               similar: extrasData.similar ?? [],
               watchProviders: extrasData.watchProviders ?? null,
@@ -189,9 +195,17 @@ export default function MovieDetailPage() {
               )}
             </div>
           )}
-          {extras?.creators && (
+          {extras && extras.creators.length > 0 && (
             <p className="mt-1 text-sm text-text-muted">
-              {movie.mediaType === 'movie' ? 'Режиссёр' : 'Создатели'}: {extras.creators}
+              {movie.mediaType === 'movie' ? 'Режиссёр' : 'Создатели'}:{' '}
+              {extras.creators.map((c, i) => (
+                <span key={c.id}>
+                  {i > 0 && ', '}
+                  <Link href={`/person/${c.id}`} className="hover:text-lavender hover:underline">
+                    {c.name}
+                  </Link>
+                </span>
+              ))}
             </p>
           )}
 
@@ -239,16 +253,16 @@ export default function MovieDetailPage() {
           <h2 className="mb-2 text-sm font-semibold text-text-muted">В ролях</h2>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {extras.cast.map((c) => (
-              <div key={c.id} className="w-20 shrink-0 text-center">
+              <Link key={c.id} href={`/person/${c.id}`} className="w-20 shrink-0 text-center">
                 <div className="mx-auto mb-1 h-20 w-20 overflow-hidden rounded-full bg-neutral-800">
                   {c.photoUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.photoUrl} alt={c.name} className="h-full w-full object-cover" />
                   )}
                 </div>
-                <p className="line-clamp-1 text-[11px]">{c.name}</p>
+                <p className="line-clamp-1 text-[11px] hover:text-lavender">{c.name}</p>
                 <p className="line-clamp-1 text-[10px] text-text-muted">{c.character}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

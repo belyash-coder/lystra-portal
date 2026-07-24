@@ -282,9 +282,14 @@ export interface TmdbWatchProvider {
   logo_path: string;
 }
 
+export interface TmdbCreator {
+  id: number;
+  name: string;
+}
+
 export interface TmdbTitleExtras {
   trailerKey: string | null;
-  creators: string | null;
+  creators: TmdbCreator[];
   cast: TmdbCastMember[];
   similar: TmdbSearchResult[];
   watchProviders: {
@@ -304,13 +309,13 @@ export async function getTitleExtras(mediaType: MediaType, tmdbId: number): Prom
     (data.videos?.results ?? []).find((v: { site: string; type: string }) => v.site === 'YouTube' && v.type === 'Trailer') ??
     (data.videos?.results ?? []).find((v: { site: string }) => v.site === 'YouTube');
 
-  let creators: string | null = null;
+  let creators: TmdbCreator[] = [];
   if (mediaType === 'movie') {
-    const director = (data.credits?.crew ?? []).find((c: { job: string }) => c.job === 'Director');
-    creators = director?.name ?? null;
+    creators = (data.credits?.crew ?? [])
+      .filter((c: { job: string }) => c.job === 'Director')
+      .map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }));
   } else {
-    const createdBy = data.created_by ?? [];
-    creators = createdBy.length ? createdBy.map((c: { name: string }) => c.name).join(', ') : null;
+    creators = (data.created_by ?? []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }));
   }
 
   const providersByRegion = data['watch/providers']?.results ?? {};
@@ -329,5 +334,77 @@ export async function getTitleExtras(mediaType: MediaType, tmdbId: number): Prom
           link: regionData.link ?? null,
         }
       : null,
+  };
+}
+
+export interface TmdbPersonDetails {
+  id: number;
+  name: string;
+  photoUrl: string | null;
+  biography: string | null;
+  birthday: string | null;
+  placeOfBirth: string | null;
+  knownForDepartment: string | null;
+}
+
+export async function getPersonDetails(personId: number): Promise<TmdbPersonDetails> {
+  const data = await tmdbFetch(`/person/${personId}`);
+  return {
+    id: data.id,
+    name: data.name,
+    photoUrl: data.profile_path ? `${TMDB_PROFILE_BASE}${data.profile_path}` : null,
+    biography: data.biography || null,
+    birthday: data.birthday || null,
+    placeOfBirth: data.place_of_birth || null,
+    knownForDepartment: data.known_for_department || null,
+  };
+}
+
+export interface PersonCreditsByRole {
+  director: TmdbSearchResult[];
+  writer: TmdbSearchResult[];
+  producer: TmdbSearchResult[];
+  actor: TmdbSearchResult[];
+}
+
+function dedupeCredits(items: TmdbSearchResult[]): TmdbSearchResult[] {
+  return [...new Map(items.map((i) => [`${i.media_type}:${i.id}`, i])).values()];
+}
+
+function sortByDateDesc(a: TmdbSearchResult, b: TmdbSearchResult): number {
+  return (b.release_date ?? '').localeCompare(a.release_date ?? '');
+}
+
+const WRITER_JOBS = ['Writer', 'Screenplay', 'Story', 'Teleplay'];
+const PRODUCER_JOBS = ['Producer', 'Executive Producer'];
+
+export async function getPersonCombinedCredits(personId: number): Promise<PersonCreditsByRole> {
+  const data = await tmdbFetch(`/person/${personId}/combined_credits`);
+
+  const castRaw = (data.cast ?? []).filter(
+    (r: { media_type: string }) => r.media_type === 'movie' || r.media_type === 'tv'
+  );
+  const crewRaw = (data.crew ?? []).filter(
+    (r: { media_type: string }) => r.media_type === 'movie' || r.media_type === 'tv'
+  );
+
+  const toResult = (r: { media_type: MediaType }) => normalizeResult(r, r.media_type);
+
+  const actor = dedupeCredits(castRaw.map(toResult));
+  const director = dedupeCredits(
+    crewRaw.filter((r: { job: string }) => r.job === 'Director').map(toResult)
+  );
+  const writer = dedupeCredits(
+    crewRaw.filter((r: { job: string }) => WRITER_JOBS.includes(r.job)).map(toResult)
+  );
+  const producer = dedupeCredits(
+    crewRaw.filter((r: { job: string }) => PRODUCER_JOBS.includes(r.job)).map(toResult)
+  );
+
+  return {
+    director: director.sort(sortByDateDesc),
+    writer: writer.sort(sortByDateDesc),
+    producer: producer.sort(sortByDateDesc),
+    actor: actor.sort(sortByDateDesc),
   };
 }
