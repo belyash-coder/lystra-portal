@@ -55,6 +55,26 @@ export interface MovieList {
   movieCount: number;
 }
 
+export interface SharedListSummary {
+  id: string;
+  partner: { username: string | null; firstName: string | null } | null;
+  movieCount: number;
+}
+
+export interface SharedListMovie {
+  movieId: string;
+  mediaType: MediaType;
+  tmdbId: number;
+  title: string;
+  posterUrl: string | null;
+  releaseYear: number | null;
+  genres: string[];
+  watched: boolean;
+  addedBy: { firstName: string | null; username: string | null };
+}
+
+export const ANIMATION_GENRE_NAME = 'Мультфильм';
+
 export const COUNTRIES = [
   { code: 'RU', name: 'Россия' },
   { code: 'US', name: 'США' },

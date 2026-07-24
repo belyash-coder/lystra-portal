@@ -31,6 +31,10 @@ model Profile {
   addedMovies  Movie[]       @relation("MovieAddedBy")
   watchEntries WatchEntry[]
   lists        MovieList[]
+
+  createdSharedLists    SharedList[]       @relation("SharedListCreatedBy")
+  sharedListMemberships SharedListMember[]
+  addedSharedEntries    SharedListEntry[]  @relation("SharedListEntryAddedBy")
 }
 
 model Movie {
@@ -51,8 +55,9 @@ model Movie {
   addedBy          Profile   @relation("MovieAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
 
-  watchEntries WatchEntry[]
-  listEntries  MovieListEntry[]
+  watchEntries      WatchEntry[]
+  listEntries       MovieListEntry[]
+  sharedListEntries SharedListEntry[]
 
   @@unique([tmdbId, mediaType])
   @@index([addedById])
@@ -96,5 +101,45 @@ model MovieListEntry {
   movie Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@id([listId, movieId])
+  @@index([movieId])
+}
+
+// Совместный список для просмотра вдвоём — не связан с личной библиотекой
+// и личными списками; отметка "просмотрено" одна на весь список.
+model SharedList {
+  id          String   @id @default(uuid())
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy Profile            @relation("SharedListCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  members   SharedListMember[]
+  entries   SharedListEntry[]
+}
+
+model SharedListMember {
+  sharedListId String
+  profileId    String
+  joinedAt     DateTime @default(now())
+
+  sharedList SharedList @relation(fields: [sharedListId], references: [id], onDelete: Cascade)
+  profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([sharedListId, profileId])
+  @@index([profileId])
+}
+
+model SharedListEntry {
+  sharedListId String
+  movieId      String
+  watched      Boolean   @default(false)
+  watchedAt    DateTime?
+  addedById    String
+  addedAt      DateTime  @default(now())
+
+  sharedList SharedList @relation(fields: [sharedListId], references: [id], onDelete: Cascade)
+  movie      Movie      @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  addedBy    Profile    @relation("SharedListEntryAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
+
+  @@id([sharedListId, movieId])
   @@index([movieId])
 }

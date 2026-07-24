@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Library, ListChecks } from 'lucide-react';
+import { Library, ListChecks, Users2 } from 'lucide-react';
 import { useProfile } from './TelegramProvider';
 
 export function ProfileMenu() {
@@ -39,6 +39,14 @@ export function ProfileMenu() {
           >
             <ListChecks size={16} />
             Списки
+          </Link>
+          <Link
+            href="/shared-lists"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-surface-hover"
+          >
+            <Users2 size={16} />
+            Совместные списки
           </Link>
         </div>
       )}
