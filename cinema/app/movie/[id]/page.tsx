@@ -6,8 +6,9 @@ import { ArrowLeft, Play, Loader2, Star } from 'lucide-react';
 import { StatusSelect } from '@/components/StatusSelect';
 import { RatingStars } from '@/components/RatingStars';
 import { ListPicker } from '@/components/ListPicker';
+import { SharedListPicker } from '@/components/SharedListPicker';
 import { TmdbResultCard } from '@/components/TmdbResultCard';
-import type { MovieWithEntry, MovieList, TmdbListItem, WatchStatus } from '@/lib/types';
+import type { MovieWithEntry, MovieList, SharedListSummary, TmdbListItem, WatchStatus } from '@/lib/types';
 
 function formatVotes(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
@@ -43,9 +44,10 @@ interface Extras {
 export default function MovieDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [movie, setMovie] = useState<(MovieWithEntry & { listIds: string[] }) | null>(null);
+  const [movie, setMovie] = useState<(MovieWithEntry & { listIds: string[]; sharedListIds: string[] }) | null>(null);
   const [extras, setExtras] = useState<Extras | null>(null);
   const [lists, setLists] = useState<MovieList[]>([]);
+  const [sharedLists, setSharedLists] = useState<SharedListSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratings, setRatings] = useState<ExternalRatings | null>(null);
   const [ratingsShown, setRatingsShown] = useState(false);
@@ -79,7 +81,8 @@ export default function MovieDetailPage() {
       fetch(`/api/movies/${params.id}`).then((res) => res.json()),
       fetch(`/api/movies/${params.id}/extras`).then((res) => (res.ok ? res.json() : null)),
       fetch('/api/lists').then((res) => res.json()),
-    ]).then(([movieData, extrasData, listsData]) => {
+      fetch('/api/shared-lists').then((res) => res.json()),
+    ]).then(([movieData, extrasData, listsData, sharedListsData]) => {
       setMovie(movieData.movie ?? null);
       setExtras(
         extrasData
@@ -93,6 +96,7 @@ export default function MovieDetailPage() {
           : null
       );
       setLists(listsData.lists ?? []);
+      setSharedLists(sharedListsData.lists ?? []);
       setLoading(false);
     });
   }, [params.id]);
@@ -277,13 +281,19 @@ export default function MovieDetailPage() {
           </div>
         )}
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-4">
         <ListPicker
           movieId={movie.id}
           lists={lists}
           listIds={movie.listIds}
           onListsChange={setLists}
           onMembershipChange={(listIds) => setMovie({ ...movie, listIds })}
+        />
+        <SharedListPicker
+          movieId={movie.id}
+          lists={sharedLists}
+          sharedListIds={movie.sharedListIds}
+          onMembershipChange={(sharedListIds) => setMovie({ ...movie, sharedListIds })}
         />
       </div>
 

@@ -75,6 +75,11 @@ export interface SharedListMovie {
 
 export const ANIMATION_GENRE_NAME = 'Мультфильм';
 
+export function sharedListPartnerLabel(partner: { username: string | null; firstName: string | null } | null): string {
+  if (!partner) return 'Ожидание участника';
+  return partner.username ? `@${partner.username}` : (partner.firstName ?? 'Без имени');
+}
+
 export const COUNTRIES = [
   { code: 'RU', name: 'Россия' },
   { code: 'US', name: 'США' },

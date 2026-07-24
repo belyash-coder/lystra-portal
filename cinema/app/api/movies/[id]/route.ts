@@ -17,6 +17,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       addedBy: { select: { id: true, firstName: true, username: true } },
       watchEntries: { where: { profileId: profile.id } },
       listEntries: { where: { list: { profileId: profile.id } }, select: { listId: true } },
+      sharedListEntries: {
+        where: { sharedList: { members: { some: { profileId: profile.id } } } },
+        select: { sharedListId: true },
+      },
     },
   });
 
@@ -45,6 +49,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       status: entry?.status ?? 'PLANNED',
       rating: entry?.rating ?? null,
       listIds: movie.listEntries.map((e) => e.listId),
+      sharedListIds: movie.sharedListEntries.map((e) => e.sharedListId),
     },
   });
 }

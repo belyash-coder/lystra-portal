@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Users2, Search, Loader2, X, Trash2 } from 'lucide-react';
 import { SharedMovieCard } from '@/components/SharedMovieCard';
-import { ANIMATION_GENRE_NAME, type SharedListMovie, type TmdbListItem } from '@/lib/types';
+import { ANIMATION_GENRE_NAME, sharedListPartnerLabel, type SharedListMovie, type TmdbListItem } from '@/lib/types';
 
 type Tab = 'movie' | 'tv' | 'animation';
 
@@ -13,11 +13,6 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'tv', label: 'Сериалы' },
   { value: 'animation', label: 'Мультфильмы' },
 ];
-
-function partnerLabel(partner: { username: string | null; firstName: string | null } | null): string {
-  if (!partner) return 'Ожидание участника';
-  return partner.username ? `@${partner.username}` : (partner.firstName ?? 'Без имени');
-}
 
 function matchesTab(movie: SharedListMovie, tab: Tab): boolean {
   const isAnimation = movie.genres.includes(ANIMATION_GENRE_NAME);
@@ -144,7 +139,7 @@ export default function SharedListDetailPage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-xl font-bold text-lavender">
           <Users2 size={22} />
-          Смотреть вместе с {partnerLabel(partner)}
+          Смотреть вместе с {sharedListPartnerLabel(partner)}
         </h1>
         <button
           onClick={removeList}

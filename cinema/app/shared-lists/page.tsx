@@ -3,12 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Users2, Plus, Loader2, Trash2 } from 'lucide-react';
-import type { SharedListSummary } from '@/lib/types';
-
-function partnerLabel(partner: SharedListSummary['partner']): string {
-  if (!partner) return 'Ожидание участника';
-  return partner.username ? `@${partner.username}` : (partner.firstName ?? 'Без имени');
-}
+import { sharedListPartnerLabel, type SharedListSummary } from '@/lib/types';
 
 export default function SharedListsPage() {
   const [lists, setLists] = useState<SharedListSummary[]>([]);
@@ -102,7 +97,7 @@ export default function SharedListsPage() {
           {lists.map((list) => (
             <div key={list.id} className="flex items-center gap-2 rounded-xl bg-surface px-4 py-3">
               <Link href={`/shared-lists/${list.id}`} className="flex flex-1 items-center justify-between">
-                <span className="font-medium">Смотреть вместе с {partnerLabel(list.partner)}</span>
+                <span className="font-medium">Смотреть вместе с {sharedListPartnerLabel(list.partner)}</span>
                 <span className="text-sm text-text-muted">{list.movieCount} фильмов</span>
               </Link>
               <button
