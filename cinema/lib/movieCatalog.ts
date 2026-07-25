@@ -10,7 +10,20 @@ export async function ensureMovieCatalogued(mediaType: MediaType, tmdbId: number
   const existing = await prisma.movie.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType: prismaMediaType } },
   });
-  if (existing) return existing;
+  if (existing) {
+    // Каталогизирован до появления genreIds — подтягиваем актуальные жанры
+    // с TMDB, иначе категоризация "Мультфильмы" останется сломанной навсегда,
+    // сколько бы раз ни жали "добавить".
+    if (existing.genreIds.length > 0) return existing;
+    const details = await getTitleDetails(mediaType, tmdbId);
+    return prisma.movie.update({
+      where: { id: existing.id },
+      data: {
+        genres: details.genres.map((g) => g.name),
+        genreIds: details.genres.map((g) => g.id),
+      },
+    });
+  }
 
   const details = await getTitleDetails(mediaType, tmdbId);
   return prisma.movie.create({
