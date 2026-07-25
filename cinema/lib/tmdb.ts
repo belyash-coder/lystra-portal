@@ -107,6 +107,7 @@ export async function getGenreList(mediaType: MediaType): Promise<TmdbGenre[]> {
 
 export interface DiscoverFilters {
   genreId?: string;
+  excludeGenreId?: string;
   countryCode?: string;
   yearFrom?: string;
   yearTo?: string;
@@ -125,6 +126,7 @@ function buildDiscoverParams(mediaType: MediaType, filters: DiscoverFilters, sor
     'vote_count.gte': '50',
   };
   if (filters.genreId) params.with_genres = filters.genreId;
+  if (filters.excludeGenreId) params.without_genres = filters.excludeGenreId;
   if (filters.countryCode) params.with_origin_country = filters.countryCode;
   if (filters.minRating) params['vote_average.gte'] = filters.minRating;
   const dateField = mediaType === 'movie' ? 'primary_release_date' : 'first_air_date';

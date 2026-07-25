@@ -46,12 +46,17 @@ export async function GET(request: Request) {
       results = data.results;
       hasMore = page < data.totalPages;
     } else if (feed === 'popular') {
+      // "Фильмы"/"Сериалы" не должны дублировать "Мультфильмы" — исключаем
+      // жанр анимации, если только пользователь не выбрал его сам явно.
+      const popularFilters: DiscoverFilters =
+        filters.genreId === String(ANIMATION_GENRE_ID) ? filters : { ...filters, excludeGenreId: String(ANIMATION_GENRE_ID) };
+
       if (sort === 'newest' || sort === 'oldest') {
-        const data = await discoverPageStableDate([{ mediaType, filters }], sort, page);
+        const data = await discoverPageStableDate([{ mediaType, filters: popularFilters }], sort, page);
         results = data.results;
         hasMore = data.hasMore;
       } else {
-        const data = await discoverPage(mediaType, filters, sort, page);
+        const data = await discoverPage(mediaType, popularFilters, sort, page);
         results = data.results;
         hasMore = page < data.totalPages;
       }
