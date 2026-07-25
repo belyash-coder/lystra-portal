@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Users2, Search, Loader2, X, Trash2 } from 'lucide-react';
 import { SharedMovieCard } from '@/components/SharedMovieCard';
-import { ANIMATION_GENRE_NAME, sharedListPartnerLabel, type SharedListMovie, type TmdbListItem } from '@/lib/types';
+import { isAnimationGenre, sharedListPartnerLabel, type SharedListMovie, type TmdbListItem } from '@/lib/types';
 
 type Tab = 'movie' | 'tv' | 'animation';
 
@@ -15,7 +15,7 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 function matchesTab(movie: SharedListMovie, tab: Tab): boolean {
-  const isAnimation = movie.genres.includes(ANIMATION_GENRE_NAME);
+  const isAnimation = isAnimationGenre(movie.genreIds, movie.genres);
   if (tab === 'animation') return isAnimation;
   if (isAnimation) return false;
   return movie.mediaType === tab;

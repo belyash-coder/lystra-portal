@@ -69,11 +69,22 @@ export interface SharedListMovie {
   posterUrl: string | null;
   releaseYear: number | null;
   genres: string[];
+  genreIds: number[];
   watched: boolean;
   addedBy: { firstName: string | null; username: string | null };
 }
 
-export const ANIMATION_GENRE_NAME = 'Мультфильм';
+// Id жанра "Анимация" в TMDB — совпадает для /genre/movie/list и /genre/tv/list.
+const ANIMATION_GENRE_ID = 16;
+// Локализация названия у TMDB не всегда одинакова между списком жанров фильмов
+// и сериалов — держим оба варианта на случай, если у уже каталогизированного
+// фильма нет сохранённого genreIds (старые записи до его появления).
+const ANIMATION_GENRE_NAMES = ['Мультфильм', 'Анимация'];
+
+export function isAnimationGenre(genreIds: number[], genres: string[]): boolean {
+  if (genreIds.length > 0) return genreIds.includes(ANIMATION_GENRE_ID);
+  return genres.some((g) => ANIMATION_GENRE_NAMES.includes(g));
+}
 
 export function sharedListPartnerLabel(partner: { username: string | null; firstName: string | null } | null): string {
   if (!partner) return 'Ожидание участника';

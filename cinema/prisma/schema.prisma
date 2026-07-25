@@ -51,6 +51,7 @@ model Movie {
   numberOfEpisodes Int?
   tmdbRating       Float?
   genres           String[]
+  genreIds         Int[]     @default([])
   addedById        String
   addedBy          Profile   @relation("MovieAddedBy", fields: [addedById], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())

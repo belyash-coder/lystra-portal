@@ -44,6 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       posterUrl: entry.movie.posterPath ? `${TMDB_POSTER_BASE}${entry.movie.posterPath}` : null,
       releaseYear: entry.movie.releaseYear,
       genres: entry.movie.genres,
+      genreIds: entry.movie.genreIds,
       watched: entry.watched,
       addedBy: { firstName: entry.addedBy.firstName, username: entry.addedBy.username },
     })),

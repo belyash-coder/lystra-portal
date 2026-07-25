@@ -27,6 +27,7 @@ export async function ensureMovieCatalogued(mediaType: MediaType, tmdbId: number
       numberOfEpisodes: details.numberOfEpisodes,
       tmdbRating: details.vote_average,
       genres: details.genres.map((g) => g.name),
+      genreIds: details.genres.map((g) => g.id),
       addedById,
     },
   });
