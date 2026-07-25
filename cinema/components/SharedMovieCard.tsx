@@ -36,10 +36,10 @@ export function SharedMovieCard({
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
+    <div className="relative flex flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
       <Link
         href={`/movie/${movie.movieId}`}
-        className={`relative block aspect-[2/3] w-full bg-neutral-900 transition-all ${
+        className={`block aspect-[2/3] w-full bg-neutral-900 transition-all duration-700 ease-out ${
           movie.watched ? 'grayscale' : ''
         }`}
       >
@@ -52,6 +52,11 @@ export function SharedMovieCard({
           </div>
         )}
       </Link>
+      {movie.watched && (
+        <span className="animate-stamp-pop pointer-events-none absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-mint text-black shadow-lg">
+          <Check size={18} strokeWidth={3} />
+        </span>
+      )}
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div>
           <h3 className="line-clamp-2 text-sm font-semibold leading-tight">{movie.title}</h3>
