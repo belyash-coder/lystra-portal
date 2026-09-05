@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -rf .next/cache && prisma generate && prisma db push && next build",
+    "build": "mkdir -p .next/cache && find .next/cache -mindepth 1 -delete; prisma generate && prisma db push && next build",
     "start": "next start",
     "lint": "eslint"
   },
