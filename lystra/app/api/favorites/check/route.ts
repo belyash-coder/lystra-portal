@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
 import { getAuthSecret } from '@/lib/authSecret';
 
@@ -17,10 +16,6 @@ async function getUserId(req: Request) {
     } catch (e) {}
   }
 
-  if (!userId) {
-    const session = await auth();
-    if (session?.user?.id) userId = session.user.id;
-  }
   return userId;
 }
 

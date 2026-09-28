@@ -1,21 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import "./globals.css";
-import AuthButton from "@/components/AuthButton";
-import MobileMenu from "@/components/MobileMenu";
-import { NotificationBell } from "@/components/NotificationBell";
-import { ChatProvider } from "@/components/ChatProvider";
-import GlobalPlayer from "@/components/GlobalPlayer";
-import SearchNavLink from "@/components/SearchNavLink"; // <-- ИМПОРТ УМНОЙ ССЫЛКИ ПОИСКА
 
+// Сайт портала убран (решение 2026-09-28): остался только бэкенд для
+// Telegram Mini App (tma.lystramusic.com) и бота — API в app/api и страница
+// рассылки app/admin/broadcast. Поэтому и оболочка — минимальная, без шапки,
+// плеера и чатов сайта.
 export const metadata: Metadata = {
   title: "LYSTRA",
-  description: "Музыкальный портал для независимых артистов и слушателей",
-  appleWebApp: {
-    capable: true,
-    title: "LYSTRA",
-    statusBarStyle: "black-translucent",
-  },
+  description: "Музыкальная рулетка жанров в Telegram",
 };
 
 export const viewport: Viewport = {
@@ -28,56 +20,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ru" className="scroll-smooth" suppressHydrationWarning>
-      <body className="bg-[#121212] text-white min-h-screen flex flex-col font-sans overflow-x-hidden">
-        
-        <ChatProvider>
-          
-          {/* ГЛОБАЛЬНАЯ ШАПКА НАВИГАЦИИ */}
-          <header className="w-full bg-[#121212]/90 backdrop-blur-md border-b border-neutral-800 sticky top-0 z-50">
-            <div className="max-w-[1600px] mx-auto px-6 md:px-12 h-16 flex items-center justify-between gap-4">
-              
-              <div className="flex-shrink-0 z-50">
-                <Link href="/" className="flex flex-col hover:opacity-90 relative z-50 w-max">
-                  <div className="text-2xl font-black tracking-wider leading-none">
-                    <span className="text-[#a78bfa]">LY</span>
-                    <span className="text-[#34d399]">ST</span>
-                    <span className="text-[#a78bfa]">RA</span>
-                  </div>
-                  <span className="text-[10px] font-medium tracking-wider text-neutral-400 mt-1">
-                    Music Discovery
-                  </span>
-                </Link>
-              </div>
-
-              <div className="flex items-center gap-4 md:gap-6">
-                <nav className="hidden md:flex items-center gap-6">
-                  <Link href="/" className="text-sm font-medium text-neutral-300 hover:text-white transition-colors">Главная</Link>
-                  <SearchNavLink className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors" />
-                  <Link href="/reviews" className="text-sm font-medium text-neutral-300 hover:text-[#a78bfa] transition-colors">Отзывы и рецензии</Link>
-                  <Link href="/about" className="text-sm font-medium text-neutral-300 hover:text-[#34d399] transition-colors">О нас</Link>
-                </nav>
-
-                <div className="hidden md:block">
-                  <AuthButton />
-                </div>
-
-                <div className="flex-shrink-0 z-[10000] md:hidden">
-                  <MobileMenu authNode={<AuthButton isMobile />} />
-                </div>
-              </div>
-            </div>
-          </header>
-
-          {/* ОСНОВНОЙ КОНТЕНТ СТРАНИЦ */}
-          <div className="flex-grow pb-24"> {/* Добавили pb-24, чтобы контент не прятался под плеером */}
-            {children}
-          </div>
-
-          {/* ГЛОБАЛЬНЫЙ ПЛЕЕР */}
-          <GlobalPlayer />
-
-        </ChatProvider>
+    <html lang="ru" suppressHydrationWarning>
+      <body className="bg-[#121212] text-white min-h-screen font-sans">
+        {children}
       </body>
     </html>
   );
